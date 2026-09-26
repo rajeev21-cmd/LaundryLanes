@@ -1,8 +1,12 @@
-# Laundrylanes Backend Implementation Plan
+<p align="center"><img src="assets/images/logo.webp" width="64" alt="Laundrylanes" /></p>
+<h1 align="center">Backend Implementation Plan</h1>
+<p align="center"><sub><a href="README.md">← Back to README</a> · <a href="OPEN_QUESTIONS.md">Open Questions</a> · <a href="CONTEXT.md">CONTEXT.md</a></sub></p>
 
-Plan for turning the current static marketing site into a full booking/operations system with four roles: **Customer**, **Store**, **Worker**, **Owner/Admin**. This is a design document, not yet implemented — see [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for the decisions that need your input before or during the build.
+---
 
-## 1. Roles & what each one needs
+Plan for turning the current static marketing site into a full booking/operations system with four roles: **Customer**, **Store**, **Worker**, **Owner/Admin**. This is a design document, not yet implemented — see [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) for the decisions that need your input before or during the build.
+
+## 👥 1. Roles & what each one needs
 
 | Role | Logs in as | Core need |
 |---|---|---|
@@ -11,7 +15,7 @@ Plan for turning the current static marketing site into a full booking/operation
 | Worker | provisioned by store/owner | See their own assigned pickups for the day; update status as they complete them |
 | Owner | provisioned manually (you) | See everything across all stores/workers/customers; manage stores, workers, services |
 
-## 2. Recommended stack (optimized for lowest infra cost)
+## 💰 2. Recommended stack (optimized for lowest infra cost)
 
 This does **not** need a custom backend server you host and maintain. A "Backend-as-a-Service" gives you auth, database, and role-based access out of the box, which is both cheaper and much less code than hand-rolling Express + Postgres + JWT auth.
 
@@ -27,7 +31,7 @@ This does **not** need a custom backend server you host and maintain. A "Backend
 
 Why Supabase over Firebase here: Postgres + SQL is a better fit for relational data like "store → workers → pickups" than Firestore's document model, and RLS maps cleanly onto "a store can only see its own pickups, a worker can only see pickups assigned to them" without writing that logic in every API route yourself.
 
-## 3. Data model
+## 🗄️ 3. Data model
 
 ```
 profiles                 -- one row per authenticated user, extends Supabase auth.users
@@ -67,7 +71,7 @@ bookings
 
 This is deliberately minimal — no payments table, no per-store service catalog/pricing variance, no delivery-address-different-from-pickup — because those weren't mentioned as requirements. Easy to add later without restructuring what's here.
 
-## 4. Access control (Row Level Security policies)
+## 🔐 4. Access control (Row Level Security policies)
 
 Instead of writing "if role == store, filter by store_id" in every API call, Postgres enforces it at the database level:
 
@@ -78,7 +82,7 @@ Instead of writing "if role == store, filter by store_id" in every API call, Pos
 
 This means even if there's a bug in the frontend, the database itself won't leak one store's bookings to another.
 
-## 5. Flow by role
+## 🔄 5. Flow by role
 
 **Customer:** sign up/log in → pick service → pick address (typed, or "use my location" like the existing store locator) → app finds nearest store automatically (haversine, same logic already in `assets/script.js`) → pick date + slot → confirm → booking created with `status='pending'`, `store_id` set, `assigned_worker_id` null.
 
@@ -88,7 +92,7 @@ This means even if there's a bug in the frontend, the database itself won't leak
 
 **Owner:** logs in → sees all bookings across all stores/workers, with filters (by store, by date range, by status) → can create/edit stores and worker/store accounts → basic counts (bookings today, per store, by status) as a starting point for analytics.
 
-## 6. Build phases
+## 🏗️ 6. Build phases
 
 1. **Foundation**: Supabase project, `profiles`/`stores`/`services`/`bookings` tables + RLS policies. Next.js project scaffolded, existing static site's HTML/CSS ported into it as the public marketing pages.
 2. **Auth**: signup/login pages per role (or one login page that redirects based on `profiles.role` after auth). Owner creates the first store + worker accounts manually (no public store/worker signup — see OPEN_QUESTIONS.md).
@@ -100,18 +104,19 @@ This means even if there's a bug in the frontend, the database itself won't leak
 
 Each phase is a natural place to file a `change-requests/` entry once this is live, so the existing request-inbox workflow keeps working the same way for backend features.
 
-## 7. Cost as you grow
+## 📈 7. Cost as you grow
 
 | Scale | Vercel | Supabase | Total |
 |---|---|---|---|
 | Launch (a few stores, low booking volume) | Free (Hobby) | Free tier | **$0/mo** |
-| Free Supabase project pauses after 1 week with zero traffic — fine once real customers are booking, but note this if it sits idle during development | | | |
-| Growing (steady daily bookings, need the DB to never pause, more storage) | Free or Pro ($20/mo, only needed for commercial/team use) | Pro ($25/mo) | **~$25–45/mo** |
-| Adding SMS notifications (Twilio) | — | — | +usage-based, ~$0.0079/SMS |
+| Growing (steady daily bookings, DB should never pause, more storage) | Free, or Pro $20/mo only if you need commercial/team features | Pro ($25/mo) | **~$25–45/mo** |
+| Adding SMS notifications (Twilio) | — | — | + usage-based, ~$0.0079/SMS |
+
+> ⚠️ A free Supabase project **pauses after 1 week with zero traffic**. That's a non-issue once real customers are booking daily, but worth knowing if the project sits idle during development.
 
 There's no cheaper *managed* option that still gives you real auth + a real relational database + row-level security for free — this is close to the floor for a system with four distinct login roles and per-row access rules.
 
-## 8. What's out of scope for now (flag if you want these)
+## 🚫 8. What's out of scope for now (flag if you want these)
 
 - Payments/invoicing
 - Native mobile apps (the plan assumes mobile-friendly web pages, not app-store apps)
