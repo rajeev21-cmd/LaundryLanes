@@ -1,57 +1,20 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import USERS from '@/data/users.json';
 import STORES from '@/data/stores.json';
 import SERVICES from '@/data/services.json';
-import TICKETS_SEED from '@/data/tickets.json';
-import BAGS_SEED from '@/data/bags.json';
-import CLOTHES_SEED from '@/data/clothes.json';
-import { nearestStore } from '@/lib/haversine';
-import { STATUS_ORDER, STATUS_LABELS } from '@/lib/constants';
 
-const STORAGE_KEY = 'laundrylanes-poc-v3';
-
-function offsetToDateStr(offset) {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
-}
-
-function seedHistoryFor(ticket) {
-  const baseDate = offsetToDateStr(ticket.dayOffset);
-  if (ticket.status === 'cancelled') {
-    return [
-      { at: `${baseDate}T09:00:00.000Z`, status: 'pickup_scheduled', byUserId: null, byName: 'Seed data', byRole: null, note: 'Ticket created' },
-      { at: `${baseDate}T09:05:00.000Z`, status: 'cancelled', byUserId: null, byName: 'Seed data', byRole: null, note: 'Cancelled' },
-    ];
-  }
-  const idx = STATUS_ORDER.indexOf(ticket.status);
-  return STATUS_ORDER.slice(0, idx + 1).map((status, i) => ({
-    at: `${baseDate}T${String(8 + i).padStart(2, '0')}:00:00.000Z`,
-    status,
-    byUserId: null,
-    byName: 'Seed data',
-    byRole: null,
-    note: STATUS_LABELS[status],
-  }));
-}
-
-function buildSeedTickets() {
-  return TICKETS_SEED.map((t) => {
-    const withDate = { ...t, pickupDate: offsetToDateStr(t.dayOffset) };
-    return { ...withDate, history: seedHistoryFor(withDate) };
-  });
-}
+// Identity ("who am I on this device") stays local to the browser — every
+// device/tab picks its own role independently. Ticket/bag/cloth DATA lives on
+// the server (see app/api/*) so every device sees the same shared state; this
+// is what makes it possible to demo store + rider + customer simultaneously
+// from different browsers instead of switching accounts in one tab.
+const AUTH_STORAGE_KEY = 'laundrylanes-auth-v1';
+const POLL_INTERVAL_MS = 5000;
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
-}
-
-let idCounter = 0;
-function nextId(prefix) {
-  idCounter += 1;
-  return `${prefix}-${Date.now()}-${idCounter}`;
 }
 
 const AppContext = createContext(null);
@@ -62,33 +25,55 @@ export function AppProvider({ children }) {
   const [clothes, setClothes] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const currentUserIdRef = useRef(null);
+  currentUserIdRef.current = currentUserId;
 
+  const applyState = useCallback((data) => {
+    if (!data) return;
+    setTickets(data.tickets || []);
+    setBags(data.bags || []);
+    setClothes(data.clothes || []);
+  }, []);
+
+  const fetchState = useCallback(async () => {
+    try {
+      const res = await fetch('/api/state', { cache: 'no-store' });
+      applyState(await res.json());
+    } catch {
+      // Server unreachable — keep showing whatever we last had rather than crashing.
+    }
+  }, [applyState]);
+
+  // Load identity from localStorage + first fetch of shared server state.
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setTickets(parsed.tickets || buildSeedTickets());
-        setBags(parsed.bags || BAGS_SEED);
-        setClothes(parsed.clothes || CLOTHES_SEED);
-        setCurrentUserId(parsed.currentUserId || null);
-      } else {
-        setTickets(buildSeedTickets());
-        setBags(BAGS_SEED);
-        setClothes(CLOTHES_SEED);
-      }
+      const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+      if (raw) setCurrentUserId(JSON.parse(raw).currentUserId || null);
     } catch {
-      setTickets(buildSeedTickets());
-      setBags(BAGS_SEED);
-      setClothes(CLOTHES_SEED);
+      // ignore malformed storage
     }
-    setIsHydrated(true);
-  }, []);
+    fetchState().finally(() => setIsHydrated(true));
+  }, [fetchState]);
+
+  // Poll + refetch on focus, so changes made from another device/tab show up
+  // without a manual reload — a lightweight stand-in for realtime, since this
+  // is a JSON-file store, not a database with subscriptions.
+  useEffect(() => {
+    const interval = setInterval(fetchState, POLL_INTERVAL_MS);
+    const onFocus = () => fetchState();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [fetchState]);
 
   useEffect(() => {
     if (!isHydrated) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ tickets, bags, clothes, currentUserId }));
-  }, [tickets, bags, clothes, currentUserId, isHydrated]);
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ currentUserId }));
+  }, [currentUserId, isHydrated]);
 
   const currentUser = useMemo(() => USERS.find((u) => u.id === currentUserId) || null, [currentUserId]);
 
@@ -108,162 +93,52 @@ export function AppProvider({ children }) {
 
   const logout = useCallback(() => setCurrentUserId(null), []);
 
-  const resetDemoData = useCallback(() => {
-    setTickets(buildSeedTickets());
-    setBags(BAGS_SEED);
-    setClothes(CLOTHES_SEED);
-  }, []);
+  const resetDemoData = useCallback(async () => {
+    const res = await fetch('/api/reset', { method: 'POST' });
+    applyState(await res.json());
+  }, [applyState]);
 
-  // Applies `patch` to a ticket and appends a history entry recording what changed,
-  // who did it, and any human-readable note — this is the single place every
-  // ticket mutation goes through, so the history log can never fall out of sync.
-  const logAndPatch = useCallback(
-    (ticketId, patch, note) => {
-      setTickets((prev) =>
-        prev.map((t) => {
-          if (t.id !== ticketId) return t;
-          const merged = { ...t, ...patch };
-          const entry = {
-            at: new Date().toISOString(),
-            status: merged.status,
-            byUserId: currentUser?.id || null,
-            byName: currentUser?.name || 'System',
-            byRole: currentUser?.role || null,
-            note,
-          };
-          merged.history = [...(t.history || []), entry];
-          return merged;
-        })
-      );
-    },
-    [currentUser]
-  );
-
-  // ---- Customer ----
-
-  const bookPickup = useCallback(
-    ({ customerId, serviceId, pickupAddress, lat, lng, pickupDate, slot, notes }) => {
-      const store = lat != null && lng != null ? nearestStore(STORES, lat, lng) : STORES[0];
-      const customer = USERS.find((u) => u.id === customerId);
-      const ticket = {
-        id: nextId('tk'),
-        customerId,
-        serviceId,
-        storeId: store.id,
-        assignedRiderId: null,
-        pickupDate,
-        slot,
-        status: 'pickup_scheduled',
-        pickupAddress,
-        notes: notes || '',
-        history: [
-          {
-            at: new Date().toISOString(),
-            status: 'pickup_scheduled',
-            byUserId: customerId,
-            byName: customer?.name || 'Customer',
-            byRole: 'customer',
-            note: `Ticket created, assigned to ${store.name}`,
-          },
-        ],
-      };
-      setTickets((prev) => [ticket, ...prev]);
-      return ticket;
-    },
-    []
-  );
-
-  const cancelTicket = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'cancelled' }, 'Cancelled by customer'),
-    [logAndPatch]
-  );
-
-  // ---- Store: pickup-side ----
-
-  const assignRiderForPickup = useCallback(
-    (ticketId, riderId) => {
-      const rider = USERS.find((u) => u.id === riderId);
-      logAndPatch(ticketId, { assignedRiderId: riderId, status: 'pickup_request_accepted' }, `Rider assigned for pickup: ${rider?.name || riderId}`);
-    },
-    [logAndPatch]
-  );
-
-  // ---- Rider: pickup-side ----
-
-  const riderCollect = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'driver_arriving_for_pickup' }, 'Rider en route to pickup'),
-    [logAndPatch]
-  );
-
-  const scanBag = useCallback(
-    (ticketId) => {
-      const code = `BAG-${ticketId.split('-').pop().slice(-6).toUpperCase()}`;
-      setBags((prev) => {
-        const existing = prev.find((b) => b.ticketId === ticketId);
-        if (existing) return prev.map((b) => (b.ticketId === ticketId ? { ...b, scanned: true } : b));
-        return [...prev, { id: nextId('bag'), code, ticketId, scanned: true }];
+  // Every ticket action is a PATCH to the server; the response is the full,
+  // authoritative { tickets, bags, clothes }, which we just adopt wholesale —
+  // simpler and safer than trying to patch local state to match.
+  const callAction = useCallback(
+    async (ticketId, action, payload) => {
+      const res = await fetch(`/api/tickets/${ticketId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, payload, actingUserId: currentUserIdRef.current }),
       });
-      logAndPatch(ticketId, { status: 'pickup_in_progress' }, `Bag ${code} scanned`);
+      const data = await res.json();
+      applyState(data);
+      return data;
     },
-    [logAndPatch]
+    [applyState]
   );
 
-  const addCloth = useCallback(
-    (ticketId, label) => {
-      const id = nextId('cloth');
-      const tag = `TAG-${id.split('-').pop()}`;
-      const cloth = { id, ticketId, tag, label };
-      setClothes((prev) => [...prev, cloth]);
-      logAndPatch(ticketId, {}, `Item tagged & scanned: ${label} (${tag})`);
-      return cloth;
-    },
-    [logAndPatch]
-  );
+  const bookPickup = useCallback(async ({ customerId, serviceId, pickupAddress, lat, lng, pickupDate, slot, notes }) => {
+    const res = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId, serviceId, pickupAddress, lat, lng, pickupDate, slot, notes }),
+    });
+    const data = await res.json();
+    applyState(data);
+    return data.ticket;
+  }, [applyState]);
 
-  const finishPickup = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'picked_up' }, 'Pickup completed by rider'),
-    [logAndPatch]
-  );
-
-  // ---- Store: processing-side (all manual) ----
-
-  const markArrivedAtStore = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'arrived_at_store' }, 'Arrived at store'),
-    [logAndPatch]
-  );
-  const startWashing = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'washing' }, 'Washing started'),
-    [logAndPatch]
-  );
-  const startIroning = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'ironing' }, 'Ironing started'),
-    [logAndPatch]
-  );
-  const markPacked = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'packed' }, 'Packed and ready to assign for delivery'),
-    [logAndPatch]
-  );
-
-  // ---- Store: delivery-side ----
-
-  const assignRiderForDelivery = useCallback(
-    (ticketId, riderId) => {
-      const rider = USERS.find((u) => u.id === riderId);
-      logAndPatch(ticketId, { assignedRiderId: riderId, status: 'ready_for_delivery' }, `Rider assigned for delivery: ${rider?.name || riderId}`);
-    },
-    [logAndPatch]
-  );
-
-  // ---- Rider: delivery-side ----
-
-  const startDelivery = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'out_for_delivery' }, 'Rider started delivery'),
-    [logAndPatch]
-  );
-  const markDelivered = useCallback(
-    (ticketId) => logAndPatch(ticketId, { status: 'delivered' }, 'Delivered to customer'),
-    [logAndPatch]
-  );
+  const cancelTicket = useCallback((ticketId) => callAction(ticketId, 'cancelTicket'), [callAction]);
+  const assignRiderForPickup = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForPickup', { riderId }), [callAction]);
+  const riderCollect = useCallback((ticketId) => callAction(ticketId, 'riderCollect'), [callAction]);
+  const scanBag = useCallback((ticketId) => callAction(ticketId, 'scanBag'), [callAction]);
+  const addCloth = useCallback((ticketId, label) => callAction(ticketId, 'addCloth', { label }), [callAction]);
+  const finishPickup = useCallback((ticketId) => callAction(ticketId, 'finishPickup'), [callAction]);
+  const markArrivedAtStore = useCallback((ticketId) => callAction(ticketId, 'markArrivedAtStore'), [callAction]);
+  const startWashing = useCallback((ticketId) => callAction(ticketId, 'startWashing'), [callAction]);
+  const startIroning = useCallback((ticketId) => callAction(ticketId, 'startIroning'), [callAction]);
+  const markPacked = useCallback((ticketId) => callAction(ticketId, 'markPacked'), [callAction]);
+  const assignRiderForDelivery = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForDelivery', { riderId }), [callAction]);
+  const startDelivery = useCallback((ticketId) => callAction(ticketId, 'startDelivery'), [callAction]);
+  const markDelivered = useCallback((ticketId) => callAction(ticketId, 'markDelivered'), [callAction]);
 
   // ---- Shared lookups ----
 

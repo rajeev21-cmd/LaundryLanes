@@ -38,9 +38,9 @@ export default function BookPickupPage() {
     );
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    const order = bookPickup({
+    const order = await bookPickup({
       customerId: currentUser.id,
       serviceId,
       pickupAddress,

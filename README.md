@@ -8,7 +8,7 @@
 <p align="center">
   <img alt="status" src="https://img.shields.io/badge/status-POC-E07A3E?style=flat-square" />
   <img alt="stack" src="https://img.shields.io/badge/stack-Next.js%20%C2%B7%20React-0B2545?style=flat-square" />
-  <img alt="data" src="https://img.shields.io/badge/data-mock%20%2F%20localStorage-0B2545?style=flat-square" />
+  <img alt="data" src="https://img.shields.io/badge/data-shared%20JSON%20file%2C%20no%20DB-0B2545?style=flat-square" />
   <img alt="license" src="https://img.shields.io/badge/license-proprietary-lightgrey?style=flat-square" />
 </p>
 
@@ -33,7 +33,7 @@
 - 🚚 **Rider** — collect an accepted pickup, scan the bag, tag & scan each garment (which is what actually moves the ticket to "Picked Up"), and later start/complete the delivery leg
 - 👑 **Owner** — cross-store overview, stores, every ticket's full timeline (including its bag & garment contents), all users
 
-There's no real backend yet — auth and data are **mocked**: seeded from JSON files under [`data/`](data) into `localStorage` on first load, so the app is fully interactive (scan a bag, tag a garment, assign a rider, mark something delivered) without any server. See [`BACKEND_PLAN.md`](BACKEND_PLAN.md) for the real backend this POC is standing in for, and [`CONTEXT.md`](CONTEXT.md) for why it's built this way — including which lifecycle stages are automatic vs. manual.
+There's still no real database — but ticket/bag/cloth data lives **server-side**, in a JSON file behind a handful of API routes, seeded from [`data/`](data). That means every browser/device hitting the same running server sees the same live tickets: assign a rider from a laptop and a rider on a different phone/browser sees it appear. Only login identity is per-device (pick any demo account, on any device, independently). See [`BACKEND_PLAN.md`](BACKEND_PLAN.md) for the real (Postgres-backed) backend this is standing in for, and [`CONTEXT.md`](CONTEXT.md) for why it's built this way — including which lifecycle stages are automatic vs. manual, and the one caveat with this approach on Vercel specifically (data resets on cold starts there — a real database is still the fix for that, not this JSON file).
 
 ## 🚀 Running locally
 
