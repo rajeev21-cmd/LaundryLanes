@@ -45,3 +45,21 @@ The store locator currently uses **placeholder** store names/addresses/coordinat
 ## 10. Domain & hosting
 - Where should this eventually be deployed (Vercel, Netlify, existing hosting)? Any domain already purchased?
 - Answer:
+
+## 11. Backend rollout — account provisioning
+See [BACKEND_PLAN.md](BACKEND_PLAN.md). Plan assumes store and worker accounts are created manually by the owner (no public signup for those roles) — customers are the only self-signup role.
+- Confirm that's right, or do you want store owners/workers to be able to self-register (e.g. with an invite code)?
+- Answer:
+
+## 12. Backend rollout — booking slots
+- Should pickup slots have a capacity limit per store (e.g. max 10 bookings per morning slot), or is unlimited fine for launch?
+- What are the actual slot windows (morning/afternoon/evening, or specific hour ranges)?
+- Answer:
+
+## 13. Backend rollout — payments
+- Is any payment collection in scope (pay online at booking, pay on pickup/delivery, invoice later), or purely operational (booking + fulfillment tracking) for now?
+- Answer:
+
+## 14. Backend rollout — notifications
+- Email confirmations only (free tier), or do you want SMS/WhatsApp too? SMS/WhatsApp cost money per message (e.g. Twilio) — flagging before it's built in.
+- Answer:
