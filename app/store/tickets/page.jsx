@@ -38,9 +38,9 @@ export default function StoreTicketsPage() {
       {storeTickets.length === 0 ? (
         <div className="empty-state">No tickets match this filter.</div>
       ) : (
-        <div className="order-list">
+        <div className="order-list dense">
           {storeTickets.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} href={`/store/tickets/${ticket.id}`} />
+            <TicketCard key={ticket.id} ticket={ticket} href={`/store/tickets/${ticket.id}`} dense />
           ))}
         </div>
       )}

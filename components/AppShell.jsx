@@ -6,9 +6,9 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useApp } from '@/lib/AppProvider';
 import { NAV_ITEMS } from '@/lib/nav';
-import { ROLE_LABELS } from '@/lib/constants';
+import { ROLE_LABELS, ROLE_HOME } from '@/lib/constants';
 
-export default function AppShell({ title, children }) {
+export default function AppShell({ children }) {
   const [open, setOpen] = useState(false);
   const { currentUser, logout, resetDemoData } = useApp();
   const pathname = usePathname();
@@ -30,8 +30,9 @@ export default function AppShell({ title, children }) {
           <span />
           <span />
         </button>
-        <Image src="/images/logo.webp" width={30} height={30} alt="" className="app-topbar-logo" />
-        <span className="app-topbar-title">{title}</span>
+        <Link href={ROLE_HOME[currentUser.role]} className="app-topbar-brand">
+          <Image src="/images/logo.webp" width={140} height={70} alt="Laundrylanes" className="app-topbar-logo" />
+        </Link>
         <span className="app-role-badge">{ROLE_LABELS[currentUser.role]}</span>
       </header>
 

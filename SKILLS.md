@@ -113,6 +113,10 @@ All defined as CSS custom properties in `:root` at the top of `styles/globals.cs
 
 **Ticket/list pages are a responsive CSS grid (`.order-list`), not a stacked column** — `grid-template-columns: repeat(auto-fill, minmax(250px, 1fr))`. Single-column content (forms, ticket detail) uses `.card-section`'s own `max-width: 640px` instead of relying on a narrow outer container, so both can share the same 900px-wide `.app-content` without either looking wrong (grids get room to breathe; forms/detail stay a readable width). Keep using these two classes for new pages rather than inventing a third layout pattern.
 
+**Store and owner are deliberately denser than customer/rider.** Pass `dense` to `TicketCard` and add the `.order-list.dense` class (smaller `minmax`, tighter gap) on any store/owner list page — never on customer/rider ones, which keep the roomier default. For data blocks that should span the full `.app-content` width instead of the 640px cap (stat breakdowns, side-by-side panels), add `.card-section.wide`; `.stats-columns` lays two `.wide` sections side by side on desktop. If you add a new store/owner page, default to dense + wide; if you add a new customer/rider page, default to the roomy style — don't mix the two within one role.
+
+**The login page is a page of the site, not a modal.** It renders `<MarketingHeader showNav={false} />` above the login card and sits on `--cream`, same as everywhere else — it should never go back to being a separate full-screen dark takeover with no header. If you add another full-page flow (password reset, etc.), follow this same pattern rather than inventing a new one-off page shell.
+
 ## 🔐 How mock auth + roles work
 
 - `data/users.json`: each user has `role` (`customer`/`store`/`rider`/`owner`), `email`, `password` (plaintext — it's all fake data, fine for a public repo), and for `store`/`rider` roles, a `storeId`.

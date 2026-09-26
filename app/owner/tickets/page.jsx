@@ -22,7 +22,7 @@ export default function OwnerTicketsPage() {
         <p>{filtered.length} ticket(s)</p>
       </div>
 
-      <div className="form-field">
+      <div className="form-field" style={{ maxWidth: 320 }}>
         <label htmlFor="storeFilter">Store</label>
         <select id="storeFilter" value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)}>
           <option value="all">All stores</option>
@@ -52,9 +52,9 @@ export default function OwnerTicketsPage() {
       {filtered.length === 0 ? (
         <div className="empty-state">No tickets match this filter.</div>
       ) : (
-        <div className="order-list">
+        <div className="order-list dense">
           {filtered.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} showStore href={`/owner/tickets/${ticket.id}`} />
+            <TicketCard key={ticket.id} ticket={ticket} showStore href={`/owner/tickets/${ticket.id}`} dense />
           ))}
         </div>
       )}

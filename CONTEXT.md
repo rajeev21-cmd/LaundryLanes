@@ -56,6 +56,16 @@ After the ticket/rider rebuild, the post-login "app" felt visually disconnected 
 - **History is visible only to `store` and `owner`** (`components/TicketHistory.jsx`, gated at the call site in `TicketDetail.jsx`) — customers and riders never see it. This was an explicit requirement, not a default; if that changes, the gate is one `||` clause in `TicketDetail.jsx`.
 - **Bumped the localStorage key to `laundrylanes-poc-v3`** (tickets now carry a `history` array that didn't exist before) — anyone with old `-v2` data in their browser just gets reseeded cleanly rather than crashing on a missing field.
 
+## 🩹 v4 → v5: the login page was still the seam, and store/owner needed density
+
+After the v4 pass, the gap moved rather than closed: `/login` was still a full-bleed dark navy takeover with no header at all — the single most jarring transition in the app, since it sat between the light marketing site and the light app shell. Separately, store/owner (dense back-office roles) were using the same roomy, few-things-per-screen cards designed for a mobile customer/rider experience, which just meant more scrolling for the roles that need to scan the most tickets.
+
+- **`/login` now renders `MarketingHeader` (with `showNav={false}`) and sits on `--cream`**, not a separate dark full-screen component — it's now genuinely a page of the site, not a modal you get dropped into. Added a `showNav` prop to `MarketingHeader` for this (hides the nav links/CTA, keeps just the logo).
+- **Dropped the redundant text wordmark next to the logo in `AppShell`'s top bar.** The logo image already has "Laundry Lanes" baked into the artwork; showing a *second*, separately-styled "Laundrylanes" text next to a tiny (30px) version of the same logo was itself a source of the "different app" feeling. The app top bar's logo is now sized (44px) and presented the same way `MarketingHeader`'s is, and links to the current role's home like the marketing logo links to `/`. Dropped the now-unused `title` prop from `AppShell` and every `layout.jsx` that passed it.
+- **Added a `dense` prop to `TicketCard`** (skips the address line, tighter padding/font via `.ticket-card.dense`) and a `.order-list.dense` grid modifier (`minmax(200px, 1fr)` instead of `250px`) — used on `store`'s and `owner`'s ticket list pages only. Customer/rider keep the roomier default; this was a deliberate role-based split, not a global density change.
+- **Owner Overview went from 4 stat tiles to 8** (added awaiting-rider, in-processing, cancelled, and rider-count) **and "By status"/"By store" now sit side by side** in a `.stats-columns` grid on wide screens via a new `.card-section.wide` modifier (opts out of the standard 640px cap) — more of the operationally useful numbers visible without scrolling.
+- **Store's Pickup Requests page gained a 4-tile stat strip** (awaiting rider / accepted / rider arriving / pickup in progress) above the ticket grid, for the same reason.
+
 ## 🛠️ Tech choices (marketing site specifics, carried over from v1)
 
 - **Leaflet.js + OpenStreetMap tiles** for the store locator map (loaded via CDN `<script>`/`<link>` tags in `app/layout.jsx`, no API key required) — avoids needing a Google Maps API key/billing account. If Google Maps styling/Places autocomplete is wanted later, swap `components/StoreLocator.jsx`'s map init.

@@ -6,7 +6,7 @@ import AppShell from '@/components/AppShell';
 export default function CustomerLayout({ children }) {
   return (
     <RoleGuard role="customer">
-      <AppShell title="Laundrylanes">{children}</AppShell>
+      <AppShell>{children}</AppShell>
     </RoleGuard>
   );
 }
