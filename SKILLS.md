@@ -45,11 +45,22 @@ pickup_scheduled → pickup_request_accepted → driver_arriving_for_pickup → 
 
 ...plus an off-path `cancelled` (reachable only from `pickup_scheduled`, by the customer). `STATUS_LABELS` has display names; `STATUS_DRIVER` documents who/what moves a ticket out of each status (shown in the UI too) — **only `pickup_scheduled` is automatic**, every other transition is a specific role tapping a specific button in `components/TicketDetail.jsx`. Don't add a new status without updating `STATUS_ORDER`, `STATUS_LABELS`, `STATUS_DRIVER`, the CSS `.status-<name>` color rule in `styles/globals.css`, and the relevant action in `AppProvider`.
 
+**Claiming, not routing:** a ticket is created with `storeId: null` (see "Claiming" below) — **any** store can claim **any** unclaimed ticket, there is no auto-assignment to a "nearest" store. Claiming doesn't itself change `status`; it just sets `storeId`, i.e. "whose queue is this in."
+
 **Who does what:**
-- **Store**: `pickup_scheduled` → assigns a rider (`assignRiderForPickup`) → `pickup_request_accepted`. Later, once `picked_up`: `markArrivedAtStore` → `arrived_at_store`; `startWashing` → `washing`; `startIroning` → `ironing`; `markPacked` → `packed`; then assigns a rider for delivery (`assignRiderForDelivery`) → `ready_for_delivery`.
+- **Store**: claims an unclaimed ticket (`claimTicket`, sets `storeId`, no status change) → `pickup_scheduled` still, now with a `storeId` → assigns a rider (`assignRiderForPickup`) → `pickup_request_accepted`. Later, once `picked_up`: `markArrivedAtStore` → `arrived_at_store`; `startWashing` → `washing`; `startIroning` → `ironing`; `markPacked` → `packed`; then assigns a rider for delivery (`assignRiderForDelivery`) → `ready_for_delivery`.
 - **Rider** (only if `ticket.assignedRiderId === currentUser.id`): `pickup_request_accepted` → taps "Collect Ticket" (`riderCollect`) → `driver_arriving_for_pickup` → taps "Scan Bag" (`scanBag`, creates/scans a `Bag`) → `pickup_in_progress` → tags & scans each garment (`addCloth`, creates a `Cloth` per item) → taps "Finish Pickup" (`finishPickup`, requires ≥1 scanned item) → `picked_up`. Later: `ready_for_delivery` → "Start Delivery" (`startDelivery`) → `out_for_delivery` → "Mark Delivered" (`markDelivered`) → `delivered`.
 - **Customer**: can `cancelTicket` only while `pickup_scheduled`.
 - **Owner**: never mutates a ticket — same `TicketDetail` component renders with no action panel for that role.
+
+## 🏬 Claiming — how a ticket gets a store
+
+`ticket.storeId` starts `null`. `components/TicketDetail.jsx`'s store block branches on it three ways — **this is the pattern to copy if you touch this logic, don't add a fourth branch elsewhere**:
+1. `!ticket.storeId` → any store role sees "🏬 Claim This Ticket" (`claimTicket`).
+2. `ticket.storeId && ticket.storeId !== currentUser.storeId` → read-only "This ticket has been claimed by another store," no actions (same shape as a rider viewing a ticket assigned to a different rider).
+3. `ticket.storeId === currentUser.storeId` → the normal assign-rider/processing-stage actions.
+
+List pages follow the same "unclaimed OR mine" filter — `app/store/page.jsx`'s `todaysPickups` is `!t.storeId || t.storeId === currentUser.storeId`. `app/store/tickets/page.jsx` ("All Tickets," the store's own history) deliberately does **not** include this OR — it's `t.storeId === currentUser.storeId` only, since unclaimed tickets aren't "this store's" yet. `TicketCard`/`TicketDetail` render a distinct orange "🏬 Unclaimed" tag (`.ticket-card-tag.unclaimed`) whenever `showStore` is on and there's no store — don't let that silently render nothing.
 
 ## 📦 Bag & Cloth — real entities, not status metadata
 
@@ -140,9 +151,9 @@ All defined as CSS custom properties in `:root` at the top of `styles/globals.cs
 
 ## 🔐 How mock auth + roles work
 
-- `data/users.json`: each user has `role` (`customer`/`store`/`rider`/`owner`), `email`, `password` (plaintext — it's all fake data, fine for a public repo), and for `store`/`rider` roles, a `storeId`. **Every store in `data/stores.json` must have at least one `store` account and one `rider` account** — a store with no login is a dead end for any ticket that lands there (nearest-store auto-assignment on booking can send a ticket to *any* of the 5 seed stores, not just the ones the demo buttons log into), and a store with no rider means "assign a rider" has nothing to select even if someone does log in. If you add a 6th store, add its accounts in the same commit.
+- `data/users.json`: each user has `role` (`customer`/`store`/`rider`/`owner`), `email`, `password` (plaintext — it's all fake data, fine for a public repo), and for `store`/`rider` roles, a `storeId`. **Every store in `data/stores.json` must have at least one `store` account and one `rider` account** — any store can claim any ticket (see "Claiming" above), so a store with no login is a dead end for anything it claims (nothing to log in as, and even Owner can't assign a rider if that store has none). If you add a 6th store, add its accounts in the same commit.
 - `lib/AppProvider.jsx`'s `login(email, password)` matches against that array; `loginAsRole(role)` (used by the login page's demo buttons) just grabs the first user with that role.
-- The logged-in user's id is persisted to `localStorage` under `laundrylanes-auth-v1`, **per device/browser** — this is intentionally still local even though ticket data isn't, since each device should be able to pick its own role independently (that's the whole point of the shared-data change: a store's laptop and a rider's phone, each logged in as themselves, both editing the same tickets).
+- The logged-in user's id is persisted to `sessionStorage` (not `localStorage`) under `laundrylanes-auth-v1`, **per tab**, not just per device — this is intentionally local-and-tab-scoped even though ticket data isn't, so opening customer/store/rider in three tabs of the *same* browser gives each an independent identity and logging out in one doesn't touch the others. (`localStorage` would be shared by every tab of the same origin — that surprised a real user once; see `CONTEXT.md`. Don't switch this back.)
 - Every role's route group (`app/customer/`, etc.) has a `layout.jsx` that wraps children in `<RoleGuard role="...">` then `<AppShell>`. `RoleGuard` redirects to `/login` if there's no user or the wrong role — **this is the only access control that exists**; the API routes trust whatever `actingUserId` the client sends with zero verification. Don't treat any of this as real security.
 
 ## 🧭 How the role-based hamburger nav works
@@ -152,7 +163,7 @@ All defined as CSS custom properties in `:root` at the top of `styles/globals.cs
 ## 🎫 How tickets/bookings work
 
 - `data/tickets.json` entries have a `dayOffset` (integer, e.g. `0`/`-1`/`1`) instead of a fixed date. `lib/seedData.js` converts these to real `pickupDate` strings (relative to whenever the database gets (re)seeded) — **don't hardcode dates in seed data**, always use `dayOffset` so "today's pickups" stays meaningful no matter when someone runs the demo.
-- Booking a pickup (`app/customer/book/page.jsx`) `await`s `bookPickup()`, which `POST`s to `/api/tickets`; the server auto-assigns the nearest store via `lib/haversine.js` if the customer shared their location, else defaults to `stores[0]`, and creates the ticket at `pickup_scheduled`. This is the one client action whose return value callers actually use (the created ticket, to show the confirmation) — every other action is fire-and-forget from the caller's perspective, since `AppProvider` updates its own state once the response lands.
+- Booking a pickup (`app/customer/book/page.jsx`) `await`s `bookPickup()`, which `POST`s to `/api/tickets` and creates the ticket at `pickup_scheduled` with `storeId: null` — **no auto-assignment**, it's claimed later (see "Claiming" above). This is the one client action whose return value callers actually use (the created ticket, to show the confirmation) — every other action is fire-and-forget from the caller's perspective, since `AppProvider` updates its own state once the response lands.
 - See "The ticket lifecycle" above for the full status flow and which action function drives each transition.
 
 ## 📍 How the store locator (public site) works

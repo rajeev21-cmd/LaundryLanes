@@ -62,7 +62,7 @@ tickets                  -- one row per collection request (called "bookings" in
   pickup_lat, pickup_lng
   pickup_date       date
   pickup_slot       enum: 'morning' | 'afternoon' | 'evening'   -- start simple, see §4
-  store_id          fk -> stores.id            -- which store owns this ticket
+  store_id          fk -> stores.id, nullable   -- null = unclaimed, open to any store; see §4's claim policy
   assigned_rider_id  fk -> profiles.id, nullable  -- reused for whichever phase (pickup/delivery) is active — see OPEN_QUESTIONS.md #17
   status            enum: 'pickup_scheduled' | 'pickup_request_accepted' | 'driver_arriving_for_pickup'
                         | 'pickup_in_progress' | 'picked_up' | 'arrived_at_store' | 'washing' | 'ironing'
@@ -94,7 +94,7 @@ This is deliberately minimal — no payments table, no per-store service catalog
 Instead of writing "if role == store, filter by store_id" in every API call, Postgres enforces it at the database level:
 
 - **Customers** can `SELECT`/`INSERT` only their own rows in `tickets` (`customer_id = auth.uid()`).
-- **Store** accounts can `SELECT`/`UPDATE` only `tickets` where `store_id = profiles.store_id` (looked up for the logged-in user).
+- **Store** accounts can `SELECT` `tickets` where `store_id IS NULL` (the unclaimed pool, visible to every store) **or** `store_id = profiles.store_id`; `UPDATE` only where `store_id = profiles.store_id` **or** (`store_id IS NULL` and the update is specifically claiming it — i.e. setting `store_id` to their own). That claim case is the one place a store's write touches a row it doesn't yet "own," so it needs its own policy clause, not just the usual `store_id = profiles.store_id` check.
 - **Riders** can `SELECT`/`UPDATE` only `tickets` where `assigned_rider_id = auth.uid()`, and only the `status` field plus inserting rows into `bags`/`clothes` for their own ticket (they shouldn't be able to reassign themselves or edit the address).
 - **Owner** bypasses filters entirely (a policy that just checks `role = 'owner'`).
 
@@ -104,9 +104,9 @@ This means even if there's a bug in the frontend, the database itself won't leak
 
 This flow is already fully built and clickable in the POC (`components/TicketDetail.jsx` + `lib/AppProvider.jsx`) — what's described here is the same flow, just backed by real tables/auth instead of mock data. See `SKILLS.md` → "The ticket lifecycle" for the complete 12-stage version; summarized:
 
-**Customer:** sign up/log in → pick service → pick address (typed, or "use my location") → app finds nearest store automatically (haversine) → pick date + slot → confirm → ticket created at `pickup_scheduled`.
+**Customer:** sign up/log in → pick service → pick address (typed) → pick date + slot → confirm → ticket created at `pickup_scheduled` with no store assigned — it sits in an open pool any store can claim (no geo-routing; that was tried and explicitly rejected in favor of first-come claiming).
 
-**Store:** accepts the request by assigning a rider (→ `pickup_request_accepted`); later, once the rider has it `picked_up`, manually advances it through `arrived_at_store` → `washing` → `ironing` → `packed`, then assigns a (possibly different) rider for delivery (→ `ready_for_delivery`).
+**Store:** claims an unclaimed ticket (sets `store_id`, no status change) → accepts the request by assigning a rider (→ `pickup_request_accepted`); later, once the rider has it `picked_up`, manually advances it through `arrived_at_store` → `washing` → `ironing` → `packed`, then assigns a (possibly different) rider for delivery (→ `ready_for_delivery`).
 
 **Rider:** collects an accepted ticket (→ `driver_arriving_for_pickup`), scans the bag (→ `pickup_in_progress`, creates a `bags` row), tags & scans each garment (creates `clothes` rows), confirms pickup (→ `picked_up`); later starts (→ `out_for_delivery`) and completes (→ `delivered`) the delivery leg.
 
@@ -118,8 +118,8 @@ Phases 2–6 below are **already built** in the current POC — they're listed h
 
 1. **Foundation**: Supabase project, `profiles`/`stores`/`services`/`tickets`/`bags`/`clothes` tables + RLS policies. Next.js app already exists — this phase is "stand up Supabase," not "build the app."
 2. **Auth**: signup/login pages per role (or one login page that redirects based on `profiles.role` after auth) — already built with mock auth in `lib/AppProvider.jsx`; swap for real Supabase Auth calls. Owner creates the first store + rider accounts manually (no public store/rider signup — see OPEN_QUESTIONS.md).
-3. **Customer booking flow**: service picker → address/location → nearest-store assignment → date/slot picker → confirmation — already built; add an email via Resend on confirmation.
-4. **Store dashboard**: pickup requests list, assign-to-rider action, manual processing-stage buttons — already built.
+3. **Customer booking flow**: service picker → address → date/slot picker → confirmation (unclaimed, no store assignment) — already built; add an email via Resend on confirmation.
+4. **Store dashboard**: unclaimed-pool + pickup requests list, claim action, assign-to-rider action, manual processing-stage buttons — already built.
 5. **Rider dashboard**: schedule, collect/scan-bag/tag-items/finish-pickup flow, delivery actions — already built.
 6. **Owner dashboard**: cross-store view, filters, store/rider management (CRUD), basic counts.
 7. **Polish**: email notifications on status changes, loading/error states, mobile pass on all three dashboards.

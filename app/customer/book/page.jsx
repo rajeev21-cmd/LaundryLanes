@@ -10,33 +10,13 @@ function todayStr() {
 }
 
 export default function BookPickupPage() {
-  const { services, currentUser, bookPickup, stores } = useApp();
+  const { services, currentUser, bookPickup } = useApp();
   const [serviceId, setServiceId] = useState(services[0].id);
   const [pickupAddress, setPickupAddress] = useState('');
   const [pickupDate, setPickupDate] = useState(todayStr());
   const [slot, setSlot] = useState('morning');
   const [notes, setNotes] = useState('');
-  const [coords, setCoords] = useState(null);
-  const [locating, setLocating] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
-
-  function useMyLocation() {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setLocating(false);
-      },
-      () => {
-        alert('Unable to retrieve your location. Please allow location access and try again.');
-        setLocating(false);
-      }
-    );
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -47,14 +27,11 @@ export default function BookPickupPage() {
       pickupDate,
       slot,
       notes,
-      lat: coords?.lat,
-      lng: coords?.lng,
     });
     setCreatedOrder(order);
   }
 
   if (createdOrder) {
-    const store = stores.find((s) => s.id === createdOrder.storeId);
     return (
       <>
         <div className="app-page-head">
@@ -63,7 +40,7 @@ export default function BookPickupPage() {
         <div className="form-success">
           Your pickup is booked for <strong>{createdOrder.pickupDate}</strong> ({SLOT_LABELS[createdOrder.slot]}).
           <br />
-          Assigned to <strong>{store?.name}</strong> — they&apos;ll be in touch to confirm.
+          It&apos;s in the open queue now — a nearby store will claim it shortly.
         </div>
         <div className="card-section" style={{ marginTop: 16 }}>
           <Link href="/customer/tickets" className="btn btn-primary btn-block">
@@ -78,7 +55,7 @@ export default function BookPickupPage() {
     <>
       <div className="app-page-head">
         <h1>Book a Pickup</h1>
-        <p>Tell us what you need and when — we&apos;ll assign the nearest store.</p>
+        <p>Tell us what you need and when — any nearby store can pick it up.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="card-section">
@@ -102,10 +79,6 @@ export default function BookPickupPage() {
             placeholder="Flat / street / area / city"
             required
           />
-          <button type="button" className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={useMyLocation}>
-            {locating ? 'Locating…' : coords ? '📍 Location captured' : '📍 Use my current location'}
-          </button>
-          {coords && <p className="form-hint">We&apos;ll use this to assign your nearest store automatically.</p>}
         </div>
 
         <div className="form-field">

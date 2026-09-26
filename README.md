@@ -29,7 +29,7 @@
 **Laundrylanes** — dry cleaning, wash & fold, wash & iron, ironing, and shoe cleaning, with doorstep pickup & drop. This repo is a **Next.js proof-of-concept** covering the public marketing site *and* four role-based workflows end to end, built around a **ticket** lifecycle (12 stages, from `pickup_scheduled` to `delivered`) with real **Bag** and **Cloth** tracking:
 
 - 🧺 **Customer** — book a pickup, track tickets by their full timeline, cancel a not-yet-accepted one
-- 🏬 **Store** — accept pickup requests and assign a rider, then walk a ticket manually through arrived → washing → ironing → packed, then assign a rider for delivery
+- 🏬 **Store** — claim any unclaimed pickup from the open pool, assign a rider, then walk a ticket manually through arrived → washing → ironing → packed, then assign a rider for delivery
 - 🚚 **Rider** — collect an accepted pickup, scan the bag, tag & scan each garment (which is what actually moves the ticket to "Picked Up"), and later start/complete the delivery leg
 - 👑 **Owner** — cross-store overview, stores, every ticket's full timeline (including its bag & garment contents), all users
 
@@ -46,7 +46,7 @@ Then open **http://localhost:3000**.
 
 ## 🔑 Demo logins
 
-The [`/login`](http://localhost:3000/login) page has one-click "Demo as…" buttons, which always log into the *first* account of that role (Koramangala's store/riders, `meera@example.com`, the one owner). All 5 stores have a store + rider login — sign in manually if a ticket lands somewhere other than Koramangala or Indiranagar (e.g. via "Use My Location" while booking, which assigns the *actual* nearest of the 5 seed stores to wherever your device really is). Full list in [`data/users.json`](data/users.json); a few:
+The [`/login`](http://localhost:3000/login) page has one-click "Demo as…" buttons, which always log into the *first* account of that role (Koramangala's store/riders, `meera@example.com`, the one owner). Bookings aren't auto-assigned to a store — they land in a shared **unclaimed pool** any store can claim from — so sign in manually as a different store to try claiming from a fresh account. All 5 stores have a store + rider login. Full list in [`data/users.json`](data/users.json); a few:
 
 | Role | Email | Password |
 |---|---|---|

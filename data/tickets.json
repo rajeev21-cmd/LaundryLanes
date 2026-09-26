@@ -17,7 +17,7 @@
   { "id": "tk-2014", "customerId": "u-customer-2", "serviceId": "shoe-cleaning", "storeId": "store-indiranagar", "assignedRiderId": "u-rider-3", "dayOffset": 0, "slot": "evening", "status": "pickup_request_accepted", "pickupAddress": "9, Defence Colony, Indiranagar, Bengaluru" },
   { "id": "tk-2015", "customerId": "u-customer-3", "serviceId": "wash-iron", "storeId": "store-indiranagar", "assignedRiderId": "u-rider-3", "dayOffset": -1, "slot": "morning", "status": "delivered", "pickupAddress": "9, Defence Colony, Indiranagar, Bengaluru" },
 
-  { "id": "tk-2017", "customerId": "u-customer-1", "serviceId": "dry-cleaning", "storeId": "store-hsr", "assignedRiderId": null, "dayOffset": 0, "slot": "morning", "status": "pickup_scheduled", "pickupAddress": "Sector 2, HSR Layout, Bengaluru" },
-  { "id": "tk-2018", "customerId": "u-customer-2", "serviceId": "wash-fold", "storeId": "store-whitefield", "assignedRiderId": null, "dayOffset": 0, "slot": "afternoon", "status": "pickup_scheduled", "pickupAddress": "ITPL Main Road, Whitefield, Bengaluru" },
-  { "id": "tk-2019", "customerId": "u-customer-3", "serviceId": "ironing", "storeId": "store-jayanagar", "assignedRiderId": null, "dayOffset": 0, "slot": "morning", "status": "pickup_scheduled", "pickupAddress": "4th Block, Jayanagar, Bengaluru" }
+  { "id": "tk-2017", "customerId": "u-customer-1", "serviceId": "dry-cleaning", "storeId": null, "assignedRiderId": null, "dayOffset": 0, "slot": "morning", "status": "pickup_scheduled", "pickupAddress": "Sector 2, HSR Layout, Bengaluru" },
+  { "id": "tk-2018", "customerId": "u-customer-2", "serviceId": "wash-fold", "storeId": null, "assignedRiderId": null, "dayOffset": 0, "slot": "afternoon", "status": "pickup_scheduled", "pickupAddress": "ITPL Main Road, Whitefield, Bengaluru" },
+  { "id": "tk-2019", "customerId": "u-customer-3", "serviceId": "ironing", "storeId": null, "assignedRiderId": null, "dayOffset": 0, "slot": "morning", "status": "pickup_scheduled", "pickupAddress": "4th Block, Jayanagar, Bengaluru" }
 ]

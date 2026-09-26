@@ -5,11 +5,13 @@ import USERS from '@/data/users.json';
 import STORES from '@/data/stores.json';
 import SERVICES from '@/data/services.json';
 
-// Identity ("who am I on this device") stays local to the browser — every
-// device/tab picks its own role independently. Ticket/bag/cloth DATA lives on
-// the server (see app/api/*) so every device sees the same shared state; this
-// is what makes it possible to demo store + rider + customer simultaneously
-// from different browsers instead of switching accounts in one tab.
+// Identity ("who am I") is stored in sessionStorage, not localStorage — that's
+// scoped per-TAB, not per-origin, so opening customer/store/rider in three
+// tabs of the same browser gives each an independent login; logging out in
+// one doesn't touch the others. (localStorage would be shared by every tab of
+// the same browser profile, which is surprising — see CONTEXT.md.) Ticket/bag/
+// cloth DATA lives on the server (see app/api/*) so every tab/device sees the
+// same shared state regardless of which identity storage is used.
 const AUTH_STORAGE_KEY = 'laundrylanes-auth-v1';
 const POLL_INTERVAL_MS = 5000;
 
@@ -44,10 +46,10 @@ export function AppProvider({ children }) {
     }
   }, [applyState]);
 
-  // Load identity from localStorage + first fetch of shared server state.
+  // Load identity from this tab's sessionStorage + first fetch of shared server state.
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+      const raw = window.sessionStorage.getItem(AUTH_STORAGE_KEY);
       if (raw) setCurrentUserId(JSON.parse(raw).currentUserId || null);
     } catch {
       // ignore malformed storage
@@ -72,7 +74,7 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!isHydrated) return;
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ currentUserId }));
+    window.sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ currentUserId }));
   }, [currentUserId, isHydrated]);
 
   const currentUser = useMemo(() => USERS.find((u) => u.id === currentUserId) || null, [currentUserId]);
@@ -115,11 +117,11 @@ export function AppProvider({ children }) {
     [applyState]
   );
 
-  const bookPickup = useCallback(async ({ customerId, serviceId, pickupAddress, lat, lng, pickupDate, slot, notes }) => {
+  const bookPickup = useCallback(async ({ customerId, serviceId, pickupAddress, pickupDate, slot, notes }) => {
     const res = await fetch('/api/tickets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerId, serviceId, pickupAddress, lat, lng, pickupDate, slot, notes }),
+      body: JSON.stringify({ customerId, serviceId, pickupAddress, pickupDate, slot, notes }),
     });
     const data = await res.json();
     applyState(data);
@@ -127,6 +129,7 @@ export function AppProvider({ children }) {
   }, [applyState]);
 
   const cancelTicket = useCallback((ticketId) => callAction(ticketId, 'cancelTicket'), [callAction]);
+  const claimTicket = useCallback((ticketId) => callAction(ticketId, 'claimTicket'), [callAction]);
   const assignRiderForPickup = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForPickup', { riderId }), [callAction]);
   const riderCollect = useCallback((ticketId) => callAction(ticketId, 'riderCollect'), [callAction]);
   const scanBag = useCallback((ticketId) => callAction(ticketId, 'scanBag'), [callAction]);
@@ -161,6 +164,7 @@ export function AppProvider({ children }) {
     resetDemoData,
     bookPickup,
     cancelTicket,
+    claimTicket,
     assignRiderForPickup,
     riderCollect,
     scanBag,

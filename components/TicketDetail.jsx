@@ -19,6 +19,7 @@ export default function TicketDetail({ ticketId }) {
     getBagForTicket,
     getClothesForTicket,
     cancelTicket,
+    claimTicket,
     assignRiderForPickup,
     riderCollect,
     scanBag,
@@ -77,7 +78,11 @@ export default function TicketDetail({ ticketId }) {
         <div className="ticket-card-address">📍 {ticket.pickupAddress}</div>
         <div className="ticket-card-tags">
           {customer && <span className="ticket-card-tag">👤 {customer.name}</span>}
-          {store && <span className="ticket-card-tag">🏬 {store.name}</span>}
+          {store ? (
+            <span className="ticket-card-tag">🏬 {store.name}</span>
+          ) : (
+            ticket.status !== 'cancelled' && <span className="ticket-card-tag unclaimed">🏬 Unclaimed</span>
+          )}
           {rider && <span className="ticket-card-tag">🚚 {rider.name}</span>}
         </div>
         {ticket.status !== 'cancelled' && (
@@ -131,63 +136,82 @@ export default function TicketDetail({ ticketId }) {
 
       {currentUser.role === 'store' && (
         <>
-          {ticket.status === 'pickup_scheduled' && (
+          {!ticket.storeId && ticket.status !== 'cancelled' && (
             <div className="card-section">
-              <h3>Assign a rider for pickup</h3>
-              <select defaultValue="" onChange={(e) => e.target.value && assignRiderForPickup(ticket.id, e.target.value)}>
-                <option value="" disabled>
-                  Choose a rider…
-                </option>
-                {storeRiders.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {ticket.status === 'picked_up' && (
-            <div className="card-section">
-              <button className="btn btn-primary btn-block" onClick={() => markArrivedAtStore(ticket.id)}>
-                Mark Arrived at Store
+              <p className="form-hint" style={{ marginBottom: 10 }}>
+                Unclaimed — any store can pick this up.
+              </p>
+              <button className="btn btn-primary btn-block" onClick={() => claimTicket(ticket.id)}>
+                🏬 Claim This Ticket
               </button>
             </div>
           )}
-          {ticket.status === 'arrived_at_store' && (
-            <div className="card-section">
-              <button className="btn btn-primary btn-block" onClick={() => startWashing(ticket.id)}>
-                Start Washing
-              </button>
-            </div>
+
+          {ticket.storeId && ticket.storeId !== currentUser.storeId && (
+            <div className="empty-state">This ticket has been claimed by another store.</div>
           )}
-          {ticket.status === 'washing' && (
-            <div className="card-section">
-              <button className="btn btn-primary btn-block" onClick={() => startIroning(ticket.id)}>
-                Start Ironing
-              </button>
-            </div>
-          )}
-          {ticket.status === 'ironing' && (
-            <div className="card-section">
-              <button className="btn btn-primary btn-block" onClick={() => markPacked(ticket.id)}>
-                Mark Packed
-              </button>
-            </div>
-          )}
-          {ticket.status === 'packed' && (
-            <div className="card-section">
-              <h3>Assign a rider for delivery</h3>
-              <select defaultValue="" onChange={(e) => e.target.value && assignRiderForDelivery(ticket.id, e.target.value)}>
-                <option value="" disabled>
-                  Choose a rider…
-                </option>
-                {storeRiders.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+
+          {ticket.storeId === currentUser.storeId && (
+            <>
+              {ticket.status === 'pickup_scheduled' && (
+                <div className="card-section">
+                  <h3>Assign a rider for pickup</h3>
+                  <select defaultValue="" onChange={(e) => e.target.value && assignRiderForPickup(ticket.id, e.target.value)}>
+                    <option value="" disabled>
+                      Choose a rider…
+                    </option>
+                    {storeRiders.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {ticket.status === 'picked_up' && (
+                <div className="card-section">
+                  <button className="btn btn-primary btn-block" onClick={() => markArrivedAtStore(ticket.id)}>
+                    Mark Arrived at Store
+                  </button>
+                </div>
+              )}
+              {ticket.status === 'arrived_at_store' && (
+                <div className="card-section">
+                  <button className="btn btn-primary btn-block" onClick={() => startWashing(ticket.id)}>
+                    Start Washing
+                  </button>
+                </div>
+              )}
+              {ticket.status === 'washing' && (
+                <div className="card-section">
+                  <button className="btn btn-primary btn-block" onClick={() => startIroning(ticket.id)}>
+                    Start Ironing
+                  </button>
+                </div>
+              )}
+              {ticket.status === 'ironing' && (
+                <div className="card-section">
+                  <button className="btn btn-primary btn-block" onClick={() => markPacked(ticket.id)}>
+                    Mark Packed
+                  </button>
+                </div>
+              )}
+              {ticket.status === 'packed' && (
+                <div className="card-section">
+                  <h3>Assign a rider for delivery</h3>
+                  <select defaultValue="" onChange={(e) => e.target.value && assignRiderForDelivery(ticket.id, e.target.value)}>
+                    <option value="" disabled>
+                      Choose a rider…
+                    </option>
+                    {storeRiders.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

@@ -304,6 +304,7 @@ button, input, select, textarea { font-family: inherit; font-size: 15px; }
 }
 .ticket-card-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .ticket-card-tag { font-size: 12px; background: var(--navy-050); color: var(--navy); padding: 4px 9px; border-radius: 999px; }
+.ticket-card-tag.unclaimed { background: var(--orange); color: var(--white); font-weight: 700; }
 
 /* Dense variant — used on store/owner list views, which favor scanning more
    rows over the roomier cards customer/rider see. */

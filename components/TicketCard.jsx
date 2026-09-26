@@ -30,7 +30,11 @@ export default function TicketCard({ ticket, href, showCustomer = true, showStor
 
       <div className="ticket-card-tags">
         {showCustomer && customer && <span className="ticket-card-tag">👤 {customer.name}</span>}
-        {showStore && store && <span className="ticket-card-tag">🏬 {store.name}</span>}
+        {showStore && (store ? (
+          <span className="ticket-card-tag">🏬 {store.name}</span>
+        ) : (
+          ticket.status !== 'cancelled' && <span className="ticket-card-tag unclaimed">🏬 Unclaimed</span>
+        ))}
         {rider && <span className="ticket-card-tag">🚚 {rider.name}</span>}
       </div>
     </div>
