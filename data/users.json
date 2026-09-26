@@ -3,10 +3,16 @@
 
   { "id": "u-store-1", "name": "Koramangala Store", "email": "koramangala@laundrylanes.com", "password": "store123", "role": "store", "storeId": "store-koramangala" },
   { "id": "u-store-2", "name": "Indiranagar Store", "email": "indiranagar@laundrylanes.com", "password": "store123", "role": "store", "storeId": "store-indiranagar" },
+  { "id": "u-store-3", "name": "HSR Layout Store", "email": "hsr@laundrylanes.com", "password": "store123", "role": "store", "storeId": "store-hsr" },
+  { "id": "u-store-4", "name": "Whitefield Store", "email": "whitefield@laundrylanes.com", "password": "store123", "role": "store", "storeId": "store-whitefield" },
+  { "id": "u-store-5", "name": "Jayanagar Store", "email": "jayanagar@laundrylanes.com", "password": "store123", "role": "store", "storeId": "store-jayanagar" },
 
   { "id": "u-rider-1", "name": "Arjun Kumar", "email": "arjun@laundrylanes.com", "password": "rider123", "role": "rider", "storeId": "store-koramangala" },
   { "id": "u-rider-2", "name": "Priya Singh", "email": "priya@laundrylanes.com", "password": "rider123", "role": "rider", "storeId": "store-koramangala" },
   { "id": "u-rider-3", "name": "Suresh Babu", "email": "suresh@laundrylanes.com", "password": "rider123", "role": "rider", "storeId": "store-indiranagar" },
+  { "id": "u-rider-4", "name": "Kiran Rao", "email": "kiran@laundrylanes.com", "password": "rider123", "role": "rider", "storeId": "store-hsr" },
+  { "id": "u-rider-5", "name": "Divya Nair", "email": "divya@laundrylanes.com", "password": "rider123", "role": "rider", "storeId": "store-whitefield" },
+  { "id": "u-rider-6", "name": "Manoj Reddy", "email": "manoj@laundrylanes.com", "password": "rider123", "role": "rider", "storeId": "store-jayanagar" },
 
   { "id": "u-customer-1", "name": "Meera Sharma", "email": "meera@example.com", "password": "customer123", "role": "customer", "phone": "+91 98765 43210" },
   { "id": "u-customer-2", "name": "Aarav Patel", "email": "aarav@example.com", "password": "customer123", "role": "customer", "phone": "+91 91234 56789" },

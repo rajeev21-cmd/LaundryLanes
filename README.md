@@ -46,13 +46,15 @@ Then open **http://localhost:3000**.
 
 ## 🔑 Demo logins
 
-The [`/login`](http://localhost:3000/login) page has one-click "Demo as…" buttons for each role. To sign in manually, credentials live in [`data/users.json`](data/users.json), e.g.:
+The [`/login`](http://localhost:3000/login) page has one-click "Demo as…" buttons, which always log into the *first* account of that role (Koramangala's store/riders, `meera@example.com`, the one owner). All 5 stores have a store + rider login — sign in manually if a ticket lands somewhere other than Koramangala or Indiranagar (e.g. via "Use My Location" while booking, which assigns the *actual* nearest of the 5 seed stores to wherever your device really is). Full list in [`data/users.json`](data/users.json); a few:
 
 | Role | Email | Password |
 |---|---|---|
 | Owner | `owner@laundrylanes.com` | `owner123` |
-| Store | `koramangala@laundrylanes.com` | `store123` |
-| Rider | `arjun@laundrylanes.com` | `rider123` |
+| Store — Koramangala | `koramangala@laundrylanes.com` | `store123` |
+| Store — Indiranagar | `indiranagar@laundrylanes.com` | `store123` |
+| Store — HSR / Whitefield / Jayanagar | `hsr@` / `whitefield@` / `jayanagar@laundrylanes.com` | `store123` |
+| Rider | `arjun@laundrylanes.com` (Koramangala) | `rider123` |
 | Customer | `meera@example.com` | `customer123` |
 
 > ⚠️ These are fake demo accounts over fake data — fine to keep in a public repo, but this is **not** real authentication. Don't reuse this pattern once a real backend is built (see `BACKEND_PLAN.md`).
