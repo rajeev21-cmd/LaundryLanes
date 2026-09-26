@@ -8,8 +8,9 @@ import TICKETS_SEED from '@/data/tickets.json';
 import BAGS_SEED from '@/data/bags.json';
 import CLOTHES_SEED from '@/data/clothes.json';
 import { nearestStore } from '@/lib/haversine';
+import { STATUS_ORDER, STATUS_LABELS } from '@/lib/constants';
 
-const STORAGE_KEY = 'laundrylanes-poc-v2';
+const STORAGE_KEY = 'laundrylanes-poc-v3';
 
 function offsetToDateStr(offset) {
   const d = new Date();
@@ -17,8 +18,30 @@ function offsetToDateStr(offset) {
   return d.toISOString().slice(0, 10);
 }
 
+function seedHistoryFor(ticket) {
+  const baseDate = offsetToDateStr(ticket.dayOffset);
+  if (ticket.status === 'cancelled') {
+    return [
+      { at: `${baseDate}T09:00:00.000Z`, status: 'pickup_scheduled', byUserId: null, byName: 'Seed data', byRole: null, note: 'Ticket created' },
+      { at: `${baseDate}T09:05:00.000Z`, status: 'cancelled', byUserId: null, byName: 'Seed data', byRole: null, note: 'Cancelled' },
+    ];
+  }
+  const idx = STATUS_ORDER.indexOf(ticket.status);
+  return STATUS_ORDER.slice(0, idx + 1).map((status, i) => ({
+    at: `${baseDate}T${String(8 + i).padStart(2, '0')}:00:00.000Z`,
+    status,
+    byUserId: null,
+    byName: 'Seed data',
+    byRole: null,
+    note: STATUS_LABELS[status],
+  }));
+}
+
 function buildSeedTickets() {
-  return TICKETS_SEED.map((t) => ({ ...t, pickupDate: offsetToDateStr(t.dayOffset) }));
+  return TICKETS_SEED.map((t) => {
+    const withDate = { ...t, pickupDate: offsetToDateStr(t.dayOffset) };
+    return { ...withDate, history: seedHistoryFor(withDate) };
+  });
 }
 
 function todayStr() {
@@ -91,102 +114,156 @@ export function AppProvider({ children }) {
     setClothes(CLOTHES_SEED);
   }, []);
 
-  const patchTicket = useCallback((ticketId, patch) => {
-    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...patch } : t)));
-  }, []);
+  // Applies `patch` to a ticket and appends a history entry recording what changed,
+  // who did it, and any human-readable note — this is the single place every
+  // ticket mutation goes through, so the history log can never fall out of sync.
+  const logAndPatch = useCallback(
+    (ticketId, patch, note) => {
+      setTickets((prev) =>
+        prev.map((t) => {
+          if (t.id !== ticketId) return t;
+          const merged = { ...t, ...patch };
+          const entry = {
+            at: new Date().toISOString(),
+            status: merged.status,
+            byUserId: currentUser?.id || null,
+            byName: currentUser?.name || 'System',
+            byRole: currentUser?.role || null,
+            note,
+          };
+          merged.history = [...(t.history || []), entry];
+          return merged;
+        })
+      );
+    },
+    [currentUser]
+  );
 
   // ---- Customer ----
 
-  const bookPickup = useCallback(({ customerId, serviceId, pickupAddress, lat, lng, pickupDate, slot, notes }) => {
-    const store = lat != null && lng != null ? nearestStore(STORES, lat, lng) : STORES[0];
-    const ticket = {
-      id: nextId('tk'),
-      customerId,
-      serviceId,
-      storeId: store.id,
-      assignedRiderId: null,
-      pickupDate,
-      slot,
-      status: 'pickup_scheduled',
-      pickupAddress,
-      notes: notes || '',
-    };
-    setTickets((prev) => [ticket, ...prev]);
-    return ticket;
-  }, []);
+  const bookPickup = useCallback(
+    ({ customerId, serviceId, pickupAddress, lat, lng, pickupDate, slot, notes }) => {
+      const store = lat != null && lng != null ? nearestStore(STORES, lat, lng) : STORES[0];
+      const customer = USERS.find((u) => u.id === customerId);
+      const ticket = {
+        id: nextId('tk'),
+        customerId,
+        serviceId,
+        storeId: store.id,
+        assignedRiderId: null,
+        pickupDate,
+        slot,
+        status: 'pickup_scheduled',
+        pickupAddress,
+        notes: notes || '',
+        history: [
+          {
+            at: new Date().toISOString(),
+            status: 'pickup_scheduled',
+            byUserId: customerId,
+            byName: customer?.name || 'Customer',
+            byRole: 'customer',
+            note: `Ticket created, assigned to ${store.name}`,
+          },
+        ],
+      };
+      setTickets((prev) => [ticket, ...prev]);
+      return ticket;
+    },
+    []
+  );
 
   const cancelTicket = useCallback(
-    (ticketId) => {
-      patchTicket(ticketId, { status: 'cancelled' });
-    },
-    [patchTicket]
+    (ticketId) => logAndPatch(ticketId, { status: 'cancelled' }, 'Cancelled by customer'),
+    [logAndPatch]
   );
 
   // ---- Store: pickup-side ----
 
   const assignRiderForPickup = useCallback(
     (ticketId, riderId) => {
-      patchTicket(ticketId, { assignedRiderId: riderId, status: 'pickup_request_accepted' });
+      const rider = USERS.find((u) => u.id === riderId);
+      logAndPatch(ticketId, { assignedRiderId: riderId, status: 'pickup_request_accepted' }, `Rider assigned for pickup: ${rider?.name || riderId}`);
     },
-    [patchTicket]
+    [logAndPatch]
   );
 
   // ---- Rider: pickup-side ----
 
   const riderCollect = useCallback(
-    (ticketId) => {
-      patchTicket(ticketId, { status: 'driver_arriving_for_pickup' });
-    },
-    [patchTicket]
+    (ticketId) => logAndPatch(ticketId, { status: 'driver_arriving_for_pickup' }, 'Rider en route to pickup'),
+    [logAndPatch]
   );
 
   const scanBag = useCallback(
     (ticketId) => {
+      const code = `BAG-${ticketId.split('-').pop().slice(-6).toUpperCase()}`;
       setBags((prev) => {
         const existing = prev.find((b) => b.ticketId === ticketId);
         if (existing) return prev.map((b) => (b.ticketId === ticketId ? { ...b, scanned: true } : b));
-        const bag = { id: nextId('bag'), code: `BAG-${ticketId.split('-').pop().slice(-6).toUpperCase()}`, ticketId, scanned: true };
-        return [...prev, bag];
+        return [...prev, { id: nextId('bag'), code, ticketId, scanned: true }];
       });
-      patchTicket(ticketId, { status: 'pickup_in_progress' });
+      logAndPatch(ticketId, { status: 'pickup_in_progress' }, `Bag ${code} scanned`);
     },
-    [patchTicket]
+    [logAndPatch]
   );
 
-  const addCloth = useCallback((ticketId, label) => {
-    const id = nextId('cloth');
-    const cloth = { id, ticketId, tag: `TAG-${id.split('-').pop()}`, label };
-    setClothes((prev) => [...prev, cloth]);
-    return cloth;
-  }, []);
+  const addCloth = useCallback(
+    (ticketId, label) => {
+      const id = nextId('cloth');
+      const tag = `TAG-${id.split('-').pop()}`;
+      const cloth = { id, ticketId, tag, label };
+      setClothes((prev) => [...prev, cloth]);
+      logAndPatch(ticketId, {}, `Item tagged & scanned: ${label} (${tag})`);
+      return cloth;
+    },
+    [logAndPatch]
+  );
 
   const finishPickup = useCallback(
-    (ticketId) => {
-      patchTicket(ticketId, { status: 'picked_up' });
-    },
-    [patchTicket]
+    (ticketId) => logAndPatch(ticketId, { status: 'picked_up' }, 'Pickup completed by rider'),
+    [logAndPatch]
   );
 
   // ---- Store: processing-side (all manual) ----
 
-  const markArrivedAtStore = useCallback((ticketId) => patchTicket(ticketId, { status: 'arrived_at_store' }), [patchTicket]);
-  const startWashing = useCallback((ticketId) => patchTicket(ticketId, { status: 'washing' }), [patchTicket]);
-  const startIroning = useCallback((ticketId) => patchTicket(ticketId, { status: 'ironing' }), [patchTicket]);
-  const markPacked = useCallback((ticketId) => patchTicket(ticketId, { status: 'packed' }), [patchTicket]);
+  const markArrivedAtStore = useCallback(
+    (ticketId) => logAndPatch(ticketId, { status: 'arrived_at_store' }, 'Arrived at store'),
+    [logAndPatch]
+  );
+  const startWashing = useCallback(
+    (ticketId) => logAndPatch(ticketId, { status: 'washing' }, 'Washing started'),
+    [logAndPatch]
+  );
+  const startIroning = useCallback(
+    (ticketId) => logAndPatch(ticketId, { status: 'ironing' }, 'Ironing started'),
+    [logAndPatch]
+  );
+  const markPacked = useCallback(
+    (ticketId) => logAndPatch(ticketId, { status: 'packed' }, 'Packed and ready to assign for delivery'),
+    [logAndPatch]
+  );
 
   // ---- Store: delivery-side ----
 
   const assignRiderForDelivery = useCallback(
     (ticketId, riderId) => {
-      patchTicket(ticketId, { assignedRiderId: riderId, status: 'ready_for_delivery' });
+      const rider = USERS.find((u) => u.id === riderId);
+      logAndPatch(ticketId, { assignedRiderId: riderId, status: 'ready_for_delivery' }, `Rider assigned for delivery: ${rider?.name || riderId}`);
     },
-    [patchTicket]
+    [logAndPatch]
   );
 
   // ---- Rider: delivery-side ----
 
-  const startDelivery = useCallback((ticketId) => patchTicket(ticketId, { status: 'out_for_delivery' }), [patchTicket]);
-  const markDelivered = useCallback((ticketId) => patchTicket(ticketId, { status: 'delivered' }), [patchTicket]);
+  const startDelivery = useCallback(
+    (ticketId) => logAndPatch(ticketId, { status: 'out_for_delivery' }, 'Rider started delivery'),
+    [logAndPatch]
+  );
+  const markDelivered = useCallback(
+    (ticketId) => logAndPatch(ticketId, { status: 'delivered' }, 'Delivered to customer'),
+    [logAndPatch]
+  );
 
   // ---- Shared lookups ----
 

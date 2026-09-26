@@ -45,6 +45,17 @@ The simple `pending → assigned → picked_up → in_progress → delivered` st
 - **Owner ticket tracking is the same detail page, just read-only** (no role-specific action panel renders for `owner`) — satisfies "each request should be tracked like a ticket in owner's dashboard" without a separate owner-only view to maintain.
 - **Seed data (`data/tickets.json`) spans the whole lifecycle**, not just a few statuses — there's at least one ticket at (almost) every stage so every role's view has something realistic to show and every button in `TicketDetail` is reachable without manually driving a ticket through prior stages first.
 
+## 🩹 v3 → v4: UI consistency pass, grid layouts, per-ticket history log
+
+After the ticket/rider rebuild, the post-login "app" felt visually disconnected from the marketing site (cool grey background vs. the marketing site's warm cream, solid dark top bar vs. the marketing header's translucent cream one, no logo in the app shell), ticket lists were a single full-width stacked column that wasted space on anything wider than a phone, and there was no audit trail of what happened to a ticket over time.
+
+- **`AppShell`'s top bar and page background now match the marketing site's palette** — cream/translucent blurred top bar (was solid navy), page background is `--cream` (was `--navy-050`), and the brand logo now appears in the top bar next to the wordmark. The goal was for logging in to feel like moving deeper into the same product, not switching to a different app.
+- **Ticket (and store) lists render as a responsive CSS grid**, not a stacked column — `.order-list` is `display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr))`, so it's 1 column on a phone and 2–3 on tablet/desktop automatically, no JS/breakpoint logic needed. `app-content`'s max-width went from 720px to 900px to give the grid room to actually show multiple columns.
+- **Single-column content (forms, ticket detail, stat breakdowns) stayed narrow** via `.card-section { max-width: 640px; margin: 0 auto }`, with `.order-list > .card-section { max-width: none }` so store cards *inside* the owner/stores grid aren't clipped back down to 640px by that same rule. Widening the outer container for grids without this would have made single-question forms and the ticket detail's summary card stretch uncomfortably wide.
+- **Every ticket mutation now logs a history entry** — `lib/AppProvider.jsx`'s `logAndPatch(ticketId, patch, note)` is the single choke point every action (`assignRiderForPickup`, `scanBag`, `addCloth`, `markPacked`, ...) goes through; it appends `{ at, status, byUserId, byName, byRole, note }` to `ticket.history`. This was made the *only* way to mutate a ticket's status specifically so the log can never drift out of sync with reality — there's no code path that changes a status without recording why. Seed tickets get a synthesized walk through their prior stages (`seedHistoryFor()`) so the log isn't empty for anything pre-loaded.
+- **History is visible only to `store` and `owner`** (`components/TicketHistory.jsx`, gated at the call site in `TicketDetail.jsx`) — customers and riders never see it. This was an explicit requirement, not a default; if that changes, the gate is one `||` clause in `TicketDetail.jsx`.
+- **Bumped the localStorage key to `laundrylanes-poc-v3`** (tickets now carry a `history` array that didn't exist before) — anyone with old `-v2` data in their browser just gets reseeded cleanly rather than crashing on a missing field.
+
 ## 🛠️ Tech choices (marketing site specifics, carried over from v1)
 
 - **Leaflet.js + OpenStreetMap tiles** for the store locator map (loaded via CDN `<script>`/`<link>` tags in `app/layout.jsx`, no API key required) — avoids needing a Google Maps API key/billing account. If Google Maps styling/Places autocomplete is wanted later, swap `components/StoreLocator.jsx`'s map init.
@@ -89,10 +100,11 @@ Then open `http://localhost:3000`.
 | `components/TicketCard.jsx` | Clickable ticket summary used in every list view |
 | `components/TicketDetail.jsx` | The shared, role-aware ticket page: timeline, bag/garment contents, and whichever action buttons the current user's role + the ticket's status allow |
 | `components/TicketTimeline.jsx` | Renders the 12-stage progress stepper (or a "Cancelled" state) |
+| `components/TicketHistory.jsx` | Renders a ticket's event log; only ever mounted for `store`/`owner` (see `TicketDetail.jsx`) |
 | `components/StatusBadge.jsx` | Small colored pill for a ticket's current status |
 | `components/StoreLocator.jsx` | Leaflet map + store search, used on the public marketing page |
-| `lib/AppProvider.jsx` | Mock auth + tickets/bags/clothes context, backed by `localStorage`; seeds from `data/*.json`; every lifecycle action (`assignRiderForPickup`, `scanBag`, `addCloth`, `finishPickup`, `markPacked`, `startDelivery`, ...) lives here |
-| `lib/nav.js`, `constants.js`, `haversine.js` | Per-role nav items, status/slot/role labels + `STATUS_DRIVER` (manual/automatic notes), distance calc |
+| `lib/AppProvider.jsx` | Mock auth + tickets/bags/clothes context, backed by `localStorage`; seeds from `data/*.json`; every lifecycle action (`assignRiderForPickup`, `scanBag`, `addCloth`, `finishPickup`, `markPacked`, `startDelivery`, ...) goes through `logAndPatch()`, which is also what writes `ticket.history` |
+| `lib/nav.js`, `constants.js`, `haversine.js`, `format.js` | Per-role nav items, status/slot/role labels + `STATUS_DRIVER` (manual/automatic notes), distance calc, timestamp formatting |
 | `data/*.json` | Dummy users, stores, services, tickets, bags, clothes |
 | `styles/globals.css` | Brand tokens + marketing site styles + app-shell/dashboard/timeline styles, all in one file |
 | `public/images/logo.webp` | Brand logo (from user) |

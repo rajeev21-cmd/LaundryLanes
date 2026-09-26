@@ -30,6 +30,7 @@ export default function AppShell({ title, children }) {
           <span />
           <span />
         </button>
+        <Image src="/images/logo.webp" width={30} height={30} alt="" className="app-topbar-logo" />
         <span className="app-topbar-title">{title}</span>
         <span className="app-role-badge">{ROLE_LABELS[currentUser.role]}</span>
       </header>

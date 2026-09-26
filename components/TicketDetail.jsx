@@ -6,6 +6,7 @@ import { useApp } from '@/lib/AppProvider';
 import { SLOT_LABELS, STATUS_DRIVER } from '@/lib/constants';
 import StatusBadge from '@/components/StatusBadge';
 import TicketTimeline from '@/components/TicketTimeline';
+import TicketHistory from '@/components/TicketHistory';
 
 export default function TicketDetail({ ticketId }) {
   const app = useApp();
@@ -108,6 +109,13 @@ export default function TicketDetail({ ticketId }) {
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {(currentUser.role === 'owner' || currentUser.role === 'store') && (
+        <div className="card-section">
+          <h3>History</h3>
+          <TicketHistory history={ticket.history} />
         </div>
       )}
 

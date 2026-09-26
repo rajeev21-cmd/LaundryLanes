@@ -46,6 +46,14 @@ pickup_scheduled → pickup_request_accepted → driver_arriving_for_pickup → 
 - Look these up with `getBagForTicket(ticketId)` / `getClothesForTicket(ticketId)` from `useApp()` — never filter `bags`/`clothes` by hand in a component.
 - **"Scanning" is simulated** — a button click / form submit, not a real camera or barcode reader. If real scanning hardware is wanted later, `scanBag`/`addCloth` in `lib/AppProvider.jsx` are the functions to wire up to it.
 
+## 📜 The history log — every ticket event, store/owner only
+
+Every ticket has a `history: [{ at, status, byUserId, byName, byRole, note }]` array, rendered by `components/TicketHistory.jsx` and mounted in `TicketDetail.jsx` **only when `currentUser.role === 'store' || currentUser.role === 'owner'`** — customers and riders never see it. This is a deliberate product requirement, not an oversight; don't widen that gate without being asked.
+
+- **The only way an entry gets added is `lib/AppProvider.jsx`'s `logAndPatch(ticketId, patch, note)`.** Every single lifecycle action (`assignRiderForPickup`, `scanBag`, `addCloth`, `markPacked`, `startDelivery`, ...) calls this instead of touching `tickets` state directly — that's what guarantees the log can never miss an event. **If you add a new ticket-mutating action, it must go through `logAndPatch`, full stop.**
+- `addCloth` is a good example of a history entry with **no status change** — `patch` is `{}`, only `note` is set (`"Item tagged & scanned: ..."`). Not every history entry corresponds to a status transition.
+- Seed tickets (`data/tickets.json`) don't ship with a `history` array — `buildSeedTickets()` synthesizes one via `seedHistoryFor()`, walking `STATUS_ORDER` up to the ticket's current status with `byName: 'Seed data'`. If you add more seed tickets, you don't need to hand-write their history; this happens automatically from `status` + `dayOffset`.
+
 ## 🗂️ File structure
 
 ```
@@ -64,13 +72,15 @@ laundry/
 │   ├── TicketCard.jsx            # clickable ticket summary, used in every list view
 │   ├── TicketDetail.jsx          # THE shared, role-aware ticket page — timeline + bag/garments + actions
 │   ├── TicketTimeline.jsx        # the 12-stage progress stepper
+│   ├── TicketHistory.jsx         # event log — only mounted for store/owner
 │   ├── StatusBadge.jsx           # small colored pill for a ticket's status
 │   ├── MarketingHeader.jsx, MarketingFooter.jsx, StoreLocator.jsx   # public site only
 ├── lib/
-│   ├── AppProvider.jsx           # the mock auth+data context; every lifecycle action lives here
+│   ├── AppProvider.jsx           # the mock auth+data context; every lifecycle action (and logAndPatch) lives here
 │   ├── nav.js                    # NAV_ITEMS map: role → hamburger menu entries
 │   ├── constants.js              # STATUS_LABELS/STATUS_ORDER/STATUS_DRIVER, SLOT_LABELS, ROLE_LABELS, ROLE_HOME
-│   └── haversine.js              # distance calc, shared by StoreLocator + booking form
+│   ├── haversine.js              # distance calc, shared by StoreLocator + booking form
+│   └── format.js                 # formatDateTime() for history timestamps
 ├── data/
 │   ├── users.json                 # demo accounts: customer/store/rider/owner roles, plaintext passwords (fake data only)
 │   ├── stores.json                # placeholder Bengaluru stores
@@ -98,6 +108,10 @@ laundry/
 | Body font | `Inter` |
 
 All defined as CSS custom properties in `:root` at the top of `styles/globals.css` — change values there, not per-component.
+
+**The app shell (post-login) must visually read as the same product as the marketing site** — cream (`--cream`) page background, the translucent cream/blurred top bar (`.app-topbar`), the logo visible in it. Earlier this drifted (cool grey background, solid navy bar, no logo) and was flagged as feeling like a different app; don't reintroduce that gap.
+
+**Ticket/list pages are a responsive CSS grid (`.order-list`), not a stacked column** — `grid-template-columns: repeat(auto-fill, minmax(250px, 1fr))`. Single-column content (forms, ticket detail) uses `.card-section`'s own `max-width: 640px` instead of relying on a narrow outer container, so both can share the same 900px-wide `.app-content` without either looking wrong (grids get room to breathe; forms/detail stay a readable width). Keep using these two classes for new pages rather than inventing a third layout pattern.
 
 ## 🔐 How mock auth + roles work
 
@@ -131,6 +145,8 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. Use the "🔄 Reset demo data" option in the hamburger drawer to wipe local mutations and reseed. Also deployed at the Vercel URL in `README.md` — that deployment has its own `vercel.json` forcing Next.js framework detection (the Vercel project's dashboard setting was stuck on "Other," which silently serves only `public/` as static output — see the git history around that fix if this ever regresses).
+
+> ⚠️ **Never run `npm run build` (or `rm -rf .next`) while `npm run dev` is running against the same directory.** They both write to `.next`; doing this mid-session corrupts the dev server's runtime and every route starts 500ing or 404ing, including `/`, with no code actually being broken. Fix: stop the dev server first, `rm -rf .next`, then restart `npm run dev` (or run the build) — don't debug app code in response to this failure mode, just restart cleanly. This has bitten this project twice already.
 
 ## ✅ Conventions to follow when extending this project
 
