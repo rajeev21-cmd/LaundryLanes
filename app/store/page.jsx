@@ -1,54 +1,33 @@
 'use client';
 
 import { useApp } from '@/lib/AppProvider';
-import OrderCard from '@/components/OrderCard';
+import TicketCard from '@/components/TicketCard';
 
-export default function StoreTodayPage() {
-  const { orders, users, currentUser, today, assignWorker } = useApp();
-  const todaysOrders = orders
-    .filter((o) => o.storeId === currentUser.storeId && o.pickupDate === today)
+const PICKUP_PHASE_STATUSES = ['pickup_scheduled', 'pickup_request_accepted', 'driver_arriving_for_pickup', 'pickup_in_progress'];
+
+export default function StorePickupRequestsPage() {
+  const { tickets, currentUser, today } = useApp();
+  const todaysPickups = tickets
+    .filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && PICKUP_PHASE_STATUSES.includes(t.status))
     .sort((a, b) => a.slot.localeCompare(b.slot));
-  const workers = users.filter((u) => u.role === 'worker' && u.storeId === currentUser.storeId);
 
-  const pendingCount = todaysOrders.filter((o) => o.status === 'pending').length;
+  const needsRiderCount = todaysPickups.filter((t) => t.status === 'pickup_scheduled').length;
 
   return (
     <>
       <div className="app-page-head">
-        <h1>Today&apos;s Pickups</h1>
+        <h1>Pickup Requests</h1>
         <p>
-          {todaysOrders.length} pickup(s) today · {pendingCount} unassigned
+          {todaysPickups.length} in the pickup pipeline today · {needsRiderCount} awaiting a rider
         </p>
       </div>
 
-      {todaysOrders.length === 0 ? (
-        <div className="empty-state">No pickups scheduled for today.</div>
+      {todaysPickups.length === 0 ? (
+        <div className="empty-state">No pickups in progress today.</div>
       ) : (
         <div className="order-list">
-          {todaysOrders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              actions={
-                order.status === 'pending' || order.status === 'assigned' ? (
-                  <div className="select-inline">
-                    <select
-                      value={order.assignedWorkerId || ''}
-                      onChange={(e) => assignWorker(order.id, e.target.value)}
-                    >
-                      <option value="" disabled>
-                        Assign a worker…
-                      </option>
-                      {workers.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : null
-              }
-            />
+          {todaysPickups.map((ticket) => (
+            <TicketCard key={ticket.id} ticket={ticket} href={`/store/tickets/${ticket.id}`} />
           ))}
         </div>
       )}

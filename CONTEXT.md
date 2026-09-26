@@ -32,6 +32,19 @@ The project started as a plain static HTML/CSS/JS marketing site (v1). It was re
 - **Mobile-first "webapp" styling**, not a literal phone-frame mockup: sticky top bar, safe-area padding, `manifest.json` + `apple-mobile-web-app-capable` meta so it can be added to a home screen and open in standalone mode. Desktop just gets the same layout at a comfortable max-width rather than a different design.
 - **The marketing site (`app/page.jsx`) stayed largely as-is**, just ported from static HTML into JSX, with "Schedule a Pickup" CTAs now pointing at `/login` instead of a dead anchor.
 
+## 🎫 v2 → v3: orders became tickets, with Bag/Cloth tracking and a real 12-stage lifecycle
+
+The simple `pending → assigned → picked_up → in_progress → delivered` status model was replaced with the actual operational lifecycle: `pickup_scheduled → pickup_request_accepted → driver_arriving_for_pickup → pickup_in_progress → picked_up → arrived_at_store → washing → ironing → packed → ready_for_delivery → out_for_delivery → delivered` (plus an off-path `cancelled`). This is the domain model now — don't collapse it back down.
+
+- **Renamed `worker` → `rider`** everywhere (role value in `data/users.json`, `app/worker/` → `app/rider/`, `ROLE_LABELS`/`ROLE_HOME`/`NAV_ITEMS`, `assignedWorkerId` → `assignedRiderId`) to match the domain language the site owner actually uses.
+- **Two new tracked entities, not just status metadata**: `data/bags.json` and `data/clothes.json`, exposed via `AppProvider`'s `bags`/`clothes` state and `getBagForTicket()`/`getClothesForTicket()`. A ticket doesn't just have a status — it has an actual bag (with a code) and a list of tagged garments, created live during pickup.
+- **"Scanning" is simulated, not a real camera/barcode integration.** The rider's Scan Bag button (`scanBag(ticketId)`) and the tag-and-scan mini-form (`addCloth(ticketId, label)`) are ordinary button clicks/form submits that stand in for a real scanner. If real hardware scanning is wanted later, this is the seam to replace — see `OPEN_QUESTIONS.md`.
+- **`picked_up` is reached by explicit rider confirmation, not automatically.** There's no fixed expected item count to detect "done" against, so the rider taps "Finish Pickup" once they've tagged everything (button is disabled until at least one item is scanned).
+- **Manual vs. automatic is documented per-status in `lib/constants.js`'s `STATUS_DRIVER` map**, and surfaced directly in the ticket detail view — only `pickup_scheduled` (ticket creation) is automatic; every other transition is a specific role tapping a specific button. This was an explicit requirement, not an implementation detail to hide.
+- **All status-changing actions moved out of list cards and into a shared ticket detail page** (`components/TicketDetail.jsx`, mounted at `app/{customer,store,rider,owner}/tickets/[id]/page.jsx`). With 12 statuses and a multi-field pickup flow (scan bag → tag N items → finish), inline card actions stopped being workable; the detail page is now the single place where a ticket's timeline, bag/garment contents, and next action all live together. List pages (`TicketCard`) are just clickable summaries now.
+- **Owner ticket tracking is the same detail page, just read-only** (no role-specific action panel renders for `owner`) — satisfies "each request should be tracked like a ticket in owner's dashboard" without a separate owner-only view to maintain.
+- **Seed data (`data/tickets.json`) spans the whole lifecycle**, not just a few statuses — there's at least one ticket at (almost) every stage so every role's view has something realistic to show and every button in `TicketDetail` is reachable without manually driving a ticket through prior stages first.
+
 ## 🛠️ Tech choices (marketing site specifics, carried over from v1)
 
 - **Leaflet.js + OpenStreetMap tiles** for the store locator map (loaded via CDN `<script>`/`<link>` tags in `app/layout.jsx`, no API key required) — avoids needing a Google Maps API key/billing account. If Google Maps styling/Places autocomplete is wanted later, swap `components/StoreLocator.jsx`'s map init.
@@ -41,16 +54,19 @@ The project started as a plain static HTML/CSS/JS marketing site (v1). It was re
 
 - `data/stores.json` holds **placeholder** Bengaluru store locations (mirrors the earlier static-site placeholders) — see [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) #1.
 - `data/users.json` holds demo accounts (plaintext passwords) for all four roles — safe to keep public since every account and password is fake, but flagged in the README so nobody mistakes it for real auth.
-- `data/orders.json` seeds ~15 orders spanning today/yesterday/tomorrow and multiple stores/statuses so every view (store dashboard, worker schedule, owner overview) has something realistic to show immediately.
+- `data/tickets.json` seeds ~19 tickets spanning today/yesterday and multiple stores/statuses across the full lifecycle, so every view has something realistic to show immediately without manually driving anything through prior stages first.
+- `data/bags.json` / `data/clothes.json` seed a bag + a few tagged garments for every ticket that's already at `picked_up` or later — tickets earlier in the pickup flow (`pickup_scheduled` through `driver_arriving_for_pickup`) intentionally have none yet, so the rider demo flow (scan bag → tag items → finish pickup) has a real "starting from nothing" ticket to exercise.
 - Nearest-store assignment on booking uses the same haversine logic as the old static site's locator (`lib/haversine.js`), now shared between `StoreLocator` and the customer booking form.
 
 ## ⚠️ Known gaps / not yet built
 
-- No real backend — see `BACKEND_PLAN.md` for what wiring this to Supabase would involve (that plan's data model maps almost directly onto `data/*.json`'s shape).
+- No real backend — see `BACKEND_PLAN.md` for what wiring this to Supabase would involve. Note the data model there predates the ticket/bag/cloth rebuild and needs a `bags`/`clothes` table pass and the fuller status enum before it matches what's actually built.
+- No real camera/barcode scanning — see the "scanning is simulated" note above.
+- No "store manager" as a distinct sub-role — the brief mentioned "store role or store manager role" for who can accept a pickup request; currently there's just one `store` role covering that. Flagged in `OPEN_QUESTIONS.md`.
 - No pricing page/pricing data.
 - No payments.
 - Contact info, phone numbers, social handles on the marketing site are still placeholders.
-- Not yet deployed — running locally only.
+- Deployed to Vercel (see README) but as this same mock-data POC — no real backend in production either.
 
 ## 🚀 Running locally
 
@@ -67,13 +83,16 @@ Then open `http://localhost:3000`.
 |---|---|
 | `app/page.jsx` | Public marketing home |
 | `app/login/page.jsx` | Login + one-click demo-role buttons |
-| `app/customer/`, `app/store/`, `app/worker/`, `app/owner/` | One route group per role; each `layout.jsx` wraps its pages in `RoleGuard` + `AppShell` |
+| `app/customer/`, `app/store/`, `app/rider/`, `app/owner/` | One route group per role; each `layout.jsx` wraps its pages in `RoleGuard` + `AppShell`; each (except rider, which has one schedule page) has a `tickets/[id]/page.jsx` mounting the shared detail view |
 | `components/AppShell.jsx` | Top bar + hamburger drawer; nav items driven by `lib/nav.js` per role |
 | `components/RoleGuard.jsx` | Redirects to `/login` if the current user's role doesn't match the route |
-| `components/OrderCard.jsx`, `StatusBadge.jsx` | Shared order display used across all four roles' views |
+| `components/TicketCard.jsx` | Clickable ticket summary used in every list view |
+| `components/TicketDetail.jsx` | The shared, role-aware ticket page: timeline, bag/garment contents, and whichever action buttons the current user's role + the ticket's status allow |
+| `components/TicketTimeline.jsx` | Renders the 12-stage progress stepper (or a "Cancelled" state) |
+| `components/StatusBadge.jsx` | Small colored pill for a ticket's current status |
 | `components/StoreLocator.jsx` | Leaflet map + store search, used on the public marketing page |
-| `lib/AppProvider.jsx` | Mock auth + orders context, backed by `localStorage`; seeds from `data/*.json` |
-| `lib/nav.js`, `constants.js`, `haversine.js` | Per-role nav items, status/slot/role labels, distance calc |
-| `data/*.json` | Dummy users, stores, services, orders |
-| `styles/globals.css` | Brand tokens + marketing site styles + app-shell/dashboard styles, all in one file |
+| `lib/AppProvider.jsx` | Mock auth + tickets/bags/clothes context, backed by `localStorage`; seeds from `data/*.json`; every lifecycle action (`assignRiderForPickup`, `scanBag`, `addCloth`, `finishPickup`, `markPacked`, `startDelivery`, ...) lives here |
+| `lib/nav.js`, `constants.js`, `haversine.js` | Per-role nav items, status/slot/role labels + `STATUS_DRIVER` (manual/automatic notes), distance calc |
+| `data/*.json` | Dummy users, stores, services, tickets, bags, clothes |
+| `styles/globals.css` | Brand tokens + marketing site styles + app-shell/dashboard/timeline styles, all in one file |
 | `public/images/logo.webp` | Brand logo (from user) |

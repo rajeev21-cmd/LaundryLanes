@@ -285,22 +285,43 @@ button, input, select, textarea { font-family: inherit; font-size: 15px; }
 
 /* Order cards */
 .order-list { display: flex; flex-direction: column; gap: 12px; }
-.order-card { background: var(--white); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
-.order-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.order-card-service { font-weight: 700; color: var(--navy); font-size: 15px; }
-.order-card-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-.order-card-address { font-size: 13px; color: var(--text); margin-top: 10px; }
-.order-card-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.order-card-tag { font-size: 12px; background: var(--navy-050); color: var(--navy); padding: 4px 9px; border-radius: 999px; }
-.order-card-actions { margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(11,37,69,0.12); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ticket-card-link { display: block; }
+.ticket-card { background: var(--white); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
+.ticket-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ticket-card-service { font-weight: 700; color: var(--navy); font-size: 15px; }
+.ticket-card-id { font-weight: 600; color: var(--text-muted); font-size: 12px; }
+.ticket-card-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.ticket-card-address { font-size: 13px; color: var(--text); margin-top: 10px; }
+.ticket-card-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ticket-card-tag { font-size: 12px; background: var(--navy-050); color: var(--navy); padding: 4px 9px; border-radius: 999px; }
 
 .status-badge { font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
-.status-pending { background: #FDECD2; color: #9A5B12; }
-.status-assigned { background: #DCE8FD; color: #1D4E9B; }
-.status-picked_up { background: #E4DDF9; color: #5B3FA0; }
-.status-in_progress { background: #DCF3EC; color: #1B7A5E; }
+.status-pickup_scheduled { background: #FDECD2; color: #9A5B12; }
+.status-pickup_request_accepted { background: #DCE8FD; color: #1D4E9B; }
+.status-driver_arriving_for_pickup { background: #E4DDF9; color: #5B3FA0; }
+.status-pickup_in_progress { background: #D2EEF6; color: #146C94; }
+.status-picked_up { background: #D2F3E9; color: #0F7A5C; }
+.status-arrived_at_store { background: #E2E6ED; color: #3B4A63; }
+.status-washing { background: #D7ECFB; color: #1768A6; }
+.status-ironing { background: #FBE3D2; color: #B15B12; }
+.status-packed { background: #E7F3D2; color: #4C7A0F; }
+.status-ready_for_delivery { background: #EDE1FB; color: #6B33A6; }
+.status-out_for_delivery { background: #DCE8FD; color: #1D4E9B; }
 .status-delivered { background: #DDF5DD; color: #21793A; }
 .status-cancelled { background: #F6DCDC; color: #A32A2A; }
+
+/* ===== Ticket timeline ===== */
+.timeline { display: flex; flex-direction: column; }
+.timeline-step { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; }
+.timeline-dot {
+  width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex: 0 0 auto; background: var(--navy-050); color: var(--text-muted);
+}
+.timeline-step.done .timeline-dot { background: var(--orange); color: var(--white); }
+.timeline-step.current .timeline-dot { background: var(--navy); color: var(--white); }
+.timeline-step.current .timeline-label { font-weight: 700; color: var(--navy); }
+.timeline-step.upcoming .timeline-label { color: var(--text-muted); }
+.timeline-step.cancelled .timeline-dot { background: #A32A2A; color: var(--white); }
 
 .empty-state { text-align: center; color: var(--text-muted); padding: 40px 16px; font-size: 14px; }
 

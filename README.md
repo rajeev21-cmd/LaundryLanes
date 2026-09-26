@@ -22,16 +22,18 @@
 
 ---
 
+**Live demo:** [laundry-lanes.vercel.app](https://laundry-lanes.vercel.app)
+
 ## 🧺 What this is
 
-**Laundrylanes** — dry cleaning, wash & fold, wash & iron, ironing, and shoe cleaning, with doorstep pickup & drop. This repo is a **Next.js proof-of-concept** covering the public marketing site *and* four role-based workflows end to end:
+**Laundrylanes** — dry cleaning, wash & fold, wash & iron, ironing, and shoe cleaning, with doorstep pickup & drop. This repo is a **Next.js proof-of-concept** covering the public marketing site *and* four role-based workflows end to end, built around a **ticket** lifecycle (12 stages, from `pickup_scheduled` to `delivered`) with real **Bag** and **Cloth** tracking:
 
-- 🧺 **Customer** — book a pickup, track orders, cancel a pending one
-- 🏬 **Store** — see today's pickups, assign each to a worker
-- 🚚 **Worker** — see your own schedule, move a job through pickup → in progress → delivered
-- 👑 **Owner** — cross-store overview, stores, all orders, all users
+- 🧺 **Customer** — book a pickup, track tickets by their full timeline, cancel a not-yet-accepted one
+- 🏬 **Store** — accept pickup requests and assign a rider, then walk a ticket manually through arrived → washing → ironing → packed, then assign a rider for delivery
+- 🚚 **Rider** — collect an accepted pickup, scan the bag, tag & scan each garment (which is what actually moves the ticket to "Picked Up"), and later start/complete the delivery leg
+- 👑 **Owner** — cross-store overview, stores, every ticket's full timeline (including its bag & garment contents), all users
 
-There's no real backend yet — auth and data are **mocked**: seeded from JSON files under [`data/`](data) into `localStorage` on first load, so the app is fully interactive (assign a worker, book an order, mark something delivered) without any server. See [`BACKEND_PLAN.md`](BACKEND_PLAN.md) for the real backend this POC is standing in for, and [`CONTEXT.md`](CONTEXT.md) for why it's built this way.
+There's no real backend yet — auth and data are **mocked**: seeded from JSON files under [`data/`](data) into `localStorage` on first load, so the app is fully interactive (scan a bag, tag a garment, assign a rider, mark something delivered) without any server. See [`BACKEND_PLAN.md`](BACKEND_PLAN.md) for the real backend this POC is standing in for, and [`CONTEXT.md`](CONTEXT.md) for why it's built this way — including which lifecycle stages are automatic vs. manual.
 
 ## 🚀 Running locally
 
@@ -50,7 +52,7 @@ The [`/login`](http://localhost:3000/login) page has one-click "Demo as…" butt
 |---|---|---|
 | Owner | `owner@laundrylanes.com` | `owner123` |
 | Store | `koramangala@laundrylanes.com` | `store123` |
-| Worker | `arjun@laundrylanes.com` | `worker123` |
+| Rider | `arjun@laundrylanes.com` | `rider123` |
 | Customer | `meera@example.com` | `customer123` |
 
 > ⚠️ These are fake demo accounts over fake data — fine to keep in a public repo, but this is **not** real authentication. Don't reuse this pattern once a real backend is built (see `BACKEND_PLAN.md`).
@@ -93,11 +95,12 @@ laundry/
 ├── app/                       # Next.js App Router
 │   ├── page.jsx                 # public marketing home
 │   ├── login/                   # login + demo-role buttons
-│   ├── customer/  store/  worker/  owner/   # one folder per role
-│   │   └── layout.jsx            # role guard + hamburger app shell
-├── components/                # AppShell, RoleGuard, OrderCard, StatusBadge, StoreLocator, ...
-├── lib/                        # AppProvider (mock auth + orders context), nav, constants, haversine
-├── data/                       # dummy users.json / stores.json / services.json / orders.json
+│   ├── customer/  store/  rider/  owner/    # one folder per role
+│   │   ├── layout.jsx             # role guard + hamburger app shell
+│   │   └── tickets/[id]/          # shared ticket detail (customer/store/owner; rider too)
+├── components/                # AppShell, RoleGuard, TicketCard, TicketDetail, TicketTimeline, StoreLocator, ...
+├── lib/                        # AppProvider (mock auth + tickets/bags/clothes), nav, constants, haversine
+├── data/                       # dummy users.json / stores.json / services.json / tickets.json / bags.json / clothes.json
 ├── styles/globals.css          # brand system + app-shell + marketing styles
 ├── public/images/logo.webp
 ├── change-requests/            # inbox for proposed changes (see above)

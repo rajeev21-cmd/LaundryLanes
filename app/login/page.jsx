@@ -9,7 +9,7 @@ import { ROLE_HOME, ROLE_LABELS } from '@/lib/constants';
 const DEMO_ROLES = [
   { role: 'customer', icon: '🧺' },
   { role: 'store', icon: '🏬' },
-  { role: 'worker', icon: '🚚' },
+  { role: 'rider', icon: '🚚' },
   { role: 'owner', icon: '👑' },
 ];
 

@@ -4,10 +4,12 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import USERS from '@/data/users.json';
 import STORES from '@/data/stores.json';
 import SERVICES from '@/data/services.json';
-import ORDERS_SEED from '@/data/orders.json';
+import TICKETS_SEED from '@/data/tickets.json';
+import BAGS_SEED from '@/data/bags.json';
+import CLOTHES_SEED from '@/data/clothes.json';
 import { nearestStore } from '@/lib/haversine';
 
-const STORAGE_KEY = 'laundrylanes-poc-v1';
+const STORAGE_KEY = 'laundrylanes-poc-v2';
 
 function offsetToDateStr(offset) {
   const d = new Date();
@@ -15,43 +17,55 @@ function offsetToDateStr(offset) {
   return d.toISOString().slice(0, 10);
 }
 
-function buildSeedOrders() {
-  return ORDERS_SEED.map((o) => ({ ...o, pickupDate: offsetToDateStr(o.dayOffset) }));
+function buildSeedTickets() {
+  return TICKETS_SEED.map((t) => ({ ...t, pickupDate: offsetToDateStr(t.dayOffset) }));
 }
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+let idCounter = 0;
+function nextId(prefix) {
+  idCounter += 1;
+  return `${prefix}-${Date.now()}-${idCounter}`;
+}
+
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [orders, setOrders] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [bags, setBags] = useState([]);
+  const [clothes, setClothes] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load from localStorage on mount, seeding fresh mock data on first run.
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        setOrders(parsed.orders || buildSeedOrders());
+        setTickets(parsed.tickets || buildSeedTickets());
+        setBags(parsed.bags || BAGS_SEED);
+        setClothes(parsed.clothes || CLOTHES_SEED);
         setCurrentUserId(parsed.currentUserId || null);
       } else {
-        setOrders(buildSeedOrders());
+        setTickets(buildSeedTickets());
+        setBags(BAGS_SEED);
+        setClothes(CLOTHES_SEED);
       }
     } catch {
-      setOrders(buildSeedOrders());
+      setTickets(buildSeedTickets());
+      setBags(BAGS_SEED);
+      setClothes(CLOTHES_SEED);
     }
     setIsHydrated(true);
   }, []);
 
-  // Persist on every change, once hydrated.
   useEffect(() => {
     if (!isHydrated) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ orders, currentUserId }));
-  }, [orders, currentUserId, isHydrated]);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ tickets, bags, clothes, currentUserId }));
+  }, [tickets, bags, clothes, currentUserId, isHydrated]);
 
   const currentUser = useMemo(() => USERS.find((u) => u.id === currentUserId) || null, [currentUserId]);
 
@@ -72,47 +86,121 @@ export function AppProvider({ children }) {
   const logout = useCallback(() => setCurrentUserId(null), []);
 
   const resetDemoData = useCallback(() => {
-    setOrders(buildSeedOrders());
+    setTickets(buildSeedTickets());
+    setBags(BAGS_SEED);
+    setClothes(CLOTHES_SEED);
   }, []);
+
+  const patchTicket = useCallback((ticketId, patch) => {
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...patch } : t)));
+  }, []);
+
+  // ---- Customer ----
 
   const bookPickup = useCallback(({ customerId, serviceId, pickupAddress, lat, lng, pickupDate, slot, notes }) => {
     const store = lat != null && lng != null ? nearestStore(STORES, lat, lng) : STORES[0];
-    const order = {
-      id: `ord-${Date.now()}`,
+    const ticket = {
+      id: nextId('tk'),
       customerId,
       serviceId,
       storeId: store.id,
-      assignedWorkerId: null,
+      assignedRiderId: null,
       pickupDate,
       slot,
-      status: 'pending',
+      status: 'pickup_scheduled',
       pickupAddress,
       notes: notes || '',
     };
-    setOrders((prev) => [order, ...prev]);
-    return order;
+    setTickets((prev) => [ticket, ...prev]);
+    return ticket;
   }, []);
 
-  const assignWorker = useCallback((orderId, workerId) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, assignedWorkerId: workerId, status: 'assigned' } : o))
-    );
+  const cancelTicket = useCallback(
+    (ticketId) => {
+      patchTicket(ticketId, { status: 'cancelled' });
+    },
+    [patchTicket]
+  );
+
+  // ---- Store: pickup-side ----
+
+  const assignRiderForPickup = useCallback(
+    (ticketId, riderId) => {
+      patchTicket(ticketId, { assignedRiderId: riderId, status: 'pickup_request_accepted' });
+    },
+    [patchTicket]
+  );
+
+  // ---- Rider: pickup-side ----
+
+  const riderCollect = useCallback(
+    (ticketId) => {
+      patchTicket(ticketId, { status: 'driver_arriving_for_pickup' });
+    },
+    [patchTicket]
+  );
+
+  const scanBag = useCallback(
+    (ticketId) => {
+      setBags((prev) => {
+        const existing = prev.find((b) => b.ticketId === ticketId);
+        if (existing) return prev.map((b) => (b.ticketId === ticketId ? { ...b, scanned: true } : b));
+        const bag = { id: nextId('bag'), code: `BAG-${ticketId.split('-').pop().slice(-6).toUpperCase()}`, ticketId, scanned: true };
+        return [...prev, bag];
+      });
+      patchTicket(ticketId, { status: 'pickup_in_progress' });
+    },
+    [patchTicket]
+  );
+
+  const addCloth = useCallback((ticketId, label) => {
+    const id = nextId('cloth');
+    const cloth = { id, ticketId, tag: `TAG-${id.split('-').pop()}`, label };
+    setClothes((prev) => [...prev, cloth]);
+    return cloth;
   }, []);
 
-  const updateOrderStatus = useCallback((orderId, status) => {
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
-  }, []);
+  const finishPickup = useCallback(
+    (ticketId) => {
+      patchTicket(ticketId, { status: 'picked_up' });
+    },
+    [patchTicket]
+  );
 
-  const cancelOrder = useCallback((orderId) => {
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled' } : o)));
-  }, []);
+  // ---- Store: processing-side (all manual) ----
+
+  const markArrivedAtStore = useCallback((ticketId) => patchTicket(ticketId, { status: 'arrived_at_store' }), [patchTicket]);
+  const startWashing = useCallback((ticketId) => patchTicket(ticketId, { status: 'washing' }), [patchTicket]);
+  const startIroning = useCallback((ticketId) => patchTicket(ticketId, { status: 'ironing' }), [patchTicket]);
+  const markPacked = useCallback((ticketId) => patchTicket(ticketId, { status: 'packed' }), [patchTicket]);
+
+  // ---- Store: delivery-side ----
+
+  const assignRiderForDelivery = useCallback(
+    (ticketId, riderId) => {
+      patchTicket(ticketId, { assignedRiderId: riderId, status: 'ready_for_delivery' });
+    },
+    [patchTicket]
+  );
+
+  // ---- Rider: delivery-side ----
+
+  const startDelivery = useCallback((ticketId) => patchTicket(ticketId, { status: 'out_for_delivery' }), [patchTicket]);
+  const markDelivered = useCallback((ticketId) => patchTicket(ticketId, { status: 'delivered' }), [patchTicket]);
+
+  // ---- Shared lookups ----
+
+  const getBagForTicket = useCallback((ticketId) => bags.find((b) => b.ticketId === ticketId) || null, [bags]);
+  const getClothesForTicket = useCallback((ticketId) => clothes.filter((c) => c.ticketId === ticketId), [clothes]);
 
   const value = {
     isHydrated,
     users: USERS,
     stores: STORES,
     services: SERVICES,
-    orders,
+    tickets,
+    bags,
+    clothes,
     currentUser,
     today: todayStr(),
     login,
@@ -120,9 +208,21 @@ export function AppProvider({ children }) {
     logout,
     resetDemoData,
     bookPickup,
-    assignWorker,
-    updateOrderStatus,
-    cancelOrder,
+    cancelTicket,
+    assignRiderForPickup,
+    riderCollect,
+    scanBag,
+    addCloth,
+    finishPickup,
+    markArrivedAtStore,
+    startWashing,
+    startIroning,
+    markPacked,
+    assignRiderForDelivery,
+    startDelivery,
+    markDelivered,
+    getBagForTicket,
+    getClothesForTicket,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,0 +1,12 @@
+[
+  { "id": "bag-2004", "code": "BAG-2004", "ticketId": "tk-2004", "scanned": true },
+  { "id": "bag-2005", "code": "BAG-2005", "ticketId": "tk-2005", "scanned": true },
+  { "id": "bag-2006", "code": "BAG-2006", "ticketId": "tk-2006", "scanned": true },
+  { "id": "bag-2007", "code": "BAG-2007", "ticketId": "tk-2007", "scanned": true },
+  { "id": "bag-2008", "code": "BAG-2008", "ticketId": "tk-2008", "scanned": true },
+  { "id": "bag-2009", "code": "BAG-2009", "ticketId": "tk-2009", "scanned": true },
+  { "id": "bag-2010", "code": "BAG-2010", "ticketId": "tk-2010", "scanned": true },
+  { "id": "bag-2011", "code": "BAG-2011", "ticketId": "tk-2011", "scanned": true },
+  { "id": "bag-2012", "code": "BAG-2012", "ticketId": "tk-2012", "scanned": true },
+  { "id": "bag-2015", "code": "BAG-2015", "ticketId": "tk-2015", "scanned": true }
+]

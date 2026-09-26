@@ -1,0 +1,30 @@
+[
+  { "id": "cloth-2004-1", "ticketId": "tk-2004", "tag": "TAG-2004-1", "label": "Blue Shirt" },
+  { "id": "cloth-2004-2", "ticketId": "tk-2004", "tag": "TAG-2004-2", "label": "Formal Trousers" },
+
+  { "id": "cloth-2005-1", "ticketId": "tk-2005", "tag": "TAG-2005-1", "label": "White Shirt" },
+  { "id": "cloth-2005-2", "ticketId": "tk-2005", "tag": "TAG-2005-2", "label": "Denim Jeans" },
+  { "id": "cloth-2005-3", "ticketId": "tk-2005", "tag": "TAG-2005-3", "label": "Cotton Kurta" },
+
+  { "id": "cloth-2006-1", "ticketId": "tk-2006", "tag": "TAG-2006-1", "label": "Silk Saree" },
+  { "id": "cloth-2006-2", "ticketId": "tk-2006", "tag": "TAG-2006-2", "label": "Blouse" },
+
+  { "id": "cloth-2007-1", "ticketId": "tk-2007", "tag": "TAG-2007-1", "label": "Suit Jacket" },
+  { "id": "cloth-2007-2", "ticketId": "tk-2007", "tag": "TAG-2007-2", "label": "Suit Trousers" },
+
+  { "id": "cloth-2008-1", "ticketId": "tk-2008", "tag": "TAG-2008-1", "label": "Bedsheet Set" },
+  { "id": "cloth-2008-2", "ticketId": "tk-2008", "tag": "TAG-2008-2", "label": "Pillow Cover" },
+
+  { "id": "cloth-2009-1", "ticketId": "tk-2009", "tag": "TAG-2009-1", "label": "Sneakers - White" },
+  { "id": "cloth-2009-2", "ticketId": "tk-2009", "tag": "TAG-2009-2", "label": "Sneakers - Grey" },
+
+  { "id": "cloth-2010-1", "ticketId": "tk-2010", "tag": "TAG-2010-1", "label": "T-Shirt Pack (3)" },
+
+  { "id": "cloth-2011-1", "ticketId": "tk-2011", "tag": "TAG-2011-1", "label": "Blazer" },
+  { "id": "cloth-2011-2", "ticketId": "tk-2011", "tag": "TAG-2011-2", "label": "Dress Shirt" },
+
+  { "id": "cloth-2012-1", "ticketId": "tk-2012", "tag": "TAG-2012-1", "label": "Kids Uniform Set" },
+
+  { "id": "cloth-2015-1", "ticketId": "tk-2015", "tag": "TAG-2015-1", "label": "Wedding Saree" },
+  { "id": "cloth-2015-2", "ticketId": "tk-2015", "tag": "TAG-2015-2", "label": "Dupatta" }
+]

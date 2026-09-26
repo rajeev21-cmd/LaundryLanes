@@ -3,7 +3,7 @@
 import { useApp } from '@/lib/AppProvider';
 
 export default function OwnerStoresPage() {
-  const { stores, users, orders, today } = useApp();
+  const { stores, users, tickets, today } = useApp();
 
   return (
     <>
@@ -14,15 +14,15 @@ export default function OwnerStoresPage() {
 
       <div className="order-list">
         {stores.map((store) => {
-          const workerCount = users.filter((u) => u.role === 'worker' && u.storeId === store.id).length;
-          const todayCount = orders.filter((o) => o.storeId === store.id && o.pickupDate === today).length;
+          const riderCount = users.filter((u) => u.role === 'rider' && u.storeId === store.id).length;
+          const todayCount = tickets.filter((t) => t.storeId === store.id && t.pickupDate === today).length;
           return (
             <div key={store.id} className="card-section">
               <h3>{store.name}</h3>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>📍 {store.address}</p>
-              <div className="order-card-tags">
-                <span className="order-card-tag">🚚 {workerCount} worker(s)</span>
-                <span className="order-card-tag">📋 {todayCount} pickup(s) today</span>
+              <div className="ticket-card-tags">
+                <span className="ticket-card-tag">🚚 {riderCount} rider(s)</span>
+                <span className="ticket-card-tag">🎫 {todayCount} ticket(s) today</span>
               </div>
             </div>
           );

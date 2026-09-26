@@ -4,16 +4,16 @@
 
 ---
 
-Plan for turning the current mock-data POC into a full booking/operations system with a real backend, for four roles: **Customer**, **Store**, **Worker**, **Owner/Admin**. This is a design document — **the workflows themselves are already built and clickable** as a Next.js app with mock data (see [`README.md`](README.md) → "What this is" and [`CONTEXT.md`](CONTEXT.md)); what's described below is what it takes to make that real, with `lib/AppProvider.jsx` as the intended seam to swap mock functions for real API calls. See [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) for the decisions that need your input before or during that build.
+Plan for turning the current mock-data POC into a full booking/operations system with a real backend, for four roles: **Customer**, **Store**, **Rider**, **Owner/Admin**. This is a design document — **the workflows themselves are already built and clickable** as a Next.js app with mock data (see [`README.md`](README.md) → "What this is" and [`CONTEXT.md`](CONTEXT.md)); what's described below is what it takes to make that real, with `lib/AppProvider.jsx` as the intended seam to swap mock functions for real API calls. See [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) for the decisions that need your input before or during that build.
 
 ## 👥 1. Roles & what each one needs
 
 | Role | Logs in as | Core need |
 |---|---|---|
 | Customer | self-signup | Book a pickup (service, address, date, time slot), see booking status/history |
-| Store | provisioned by owner | Each morning, see today's pickups for their store; assign each to a worker |
-| Worker | provisioned by store/owner | See their own assigned pickups for the day; update status as they complete them |
-| Owner | provisioned manually (you) | See everything across all stores/workers/customers; manage stores, workers, services |
+| Store | provisioned by owner | Each morning, see today's pickups for their store; assign each to a rider |
+| Rider | provisioned by store/owner | See their own assigned pickups for the day; update status as they complete them |
+| Owner | provisioned manually (you) | See everything across all stores/riders/customers; manage stores, riders, services |
 
 ## 💰 2. Recommended stack (optimized for lowest infra cost)
 
@@ -29,17 +29,17 @@ This does **not** need a custom backend server you host and maintain. A "Backend
 
 **Total to launch: $0/month.** You only start paying if you outgrow free tiers (see §7).
 
-Why Supabase over Firebase here: Postgres + SQL is a better fit for relational data like "store → workers → pickups" than Firestore's document model, and RLS maps cleanly onto "a store can only see its own pickups, a worker can only see pickups assigned to them" without writing that logic in every API route yourself.
+Why Supabase over Firebase here: Postgres + SQL is a better fit for relational data like "store → riders → pickups" than Firestore's document model, and RLS maps cleanly onto "a store can only see its own pickups, a rider can only see pickups assigned to them" without writing that logic in every API route yourself.
 
 ## 🗄️ 3. Data model
 
 ```
 profiles                 -- one row per authenticated user, extends Supabase auth.users
   id (uuid, = auth.users.id)
-  role            enum: 'customer' | 'store' | 'worker' | 'owner'
+  role            enum: 'customer' | 'store' | 'rider' | 'owner'
   full_name
   phone
-  store_id        (nullable fk -> stores.id; set for 'store' and 'worker' roles)
+  store_id        (nullable fk -> stores.id; set for 'store' and 'rider' roles)
   created_at
 
 stores
@@ -54,7 +54,7 @@ services
   name            -- Dry Cleaning, Wash & Fold, Wash & Iron, Ironing, Shoe Cleaning
   price           -- nullable until pricing is decided (see OPEN_QUESTIONS.md #5)
 
-bookings
+tickets                  -- one row per collection request (called "bookings" in early drafts of this plan)
   id
   customer_id       fk -> profiles.id
   service_id        fk -> services.id
@@ -62,46 +62,66 @@ bookings
   pickup_lat, pickup_lng
   pickup_date       date
   pickup_slot       enum: 'morning' | 'afternoon' | 'evening'   -- start simple, see §4
-  store_id          fk -> stores.id            -- which store owns this pickup
-  assigned_worker_id  fk -> profiles.id, nullable  -- set by the store
-  status            enum: 'pending' | 'assigned' | 'picked_up' | 'in_progress' | 'delivered' | 'cancelled'
+  store_id          fk -> stores.id            -- which store owns this ticket
+  assigned_rider_id  fk -> profiles.id, nullable  -- reused for whichever phase (pickup/delivery) is active — see OPEN_QUESTIONS.md #17
+  status            enum: 'pickup_scheduled' | 'pickup_request_accepted' | 'driver_arriving_for_pickup'
+                        | 'pickup_in_progress' | 'picked_up' | 'arrived_at_store' | 'washing' | 'ironing'
+                        | 'packed' | 'ready_for_delivery' | 'out_for_delivery' | 'delivered' | 'cancelled'
   notes
   created_at, updated_at
+
+bags                      -- one per ticket, created when the rider scans it during pickup
+  id
+  code              -- e.g. "BAG-2001"
+  ticket_id         fk -> tickets.id
+  scanned           boolean
+  created_at
+
+clothes                    -- one per garment, created as the rider tags & scans each item
+  id
+  ticket_id         fk -> tickets.id
+  tag               -- e.g. "TAG-4821"
+  label             -- e.g. "Blue Shirt"
+  created_at
 ```
 
 This is deliberately minimal — no payments table, no per-store service catalog/pricing variance, no delivery-address-different-from-pickup — because those weren't mentioned as requirements. Easy to add later without restructuring what's here.
 
-> This maps almost directly onto the POC's `data/*.json`: `users.json` → `profiles`, `stores.json` → `stores`, `services.json` → `services`, `orders.json` → `bookings` (status enum values already match). Migrating means standing up these tables in Supabase, then replacing `lib/AppProvider.jsx`'s localStorage read/write with real queries — the pages and components shouldn't need to change.
+> This maps almost directly onto the POC's `data/*.json`: `users.json` → `profiles`, `stores.json` → `stores`, `services.json` → `services`, `tickets.json` → `tickets`, `bags.json` → `bags`, `clothes.json` → `clothes` (status enum values already match the full 12-stage lifecycle implemented in `lib/constants.js`). Migrating means standing up these tables in Supabase, then replacing `lib/AppProvider.jsx`'s localStorage read/write with real queries and its simulated `scanBag`/`addCloth` with whatever real scanning integration is decided in OPEN_QUESTIONS.md #16 — the pages and components shouldn't need to change.
 
 ## 🔐 4. Access control (Row Level Security policies)
 
 Instead of writing "if role == store, filter by store_id" in every API call, Postgres enforces it at the database level:
 
-- **Customers** can `SELECT`/`INSERT` only their own rows in `bookings` (`customer_id = auth.uid()`).
-- **Store** accounts can `SELECT`/`UPDATE` only `bookings` where `store_id = profiles.store_id` (looked up for the logged-in user).
-- **Workers** can `SELECT`/`UPDATE` only `bookings` where `assigned_worker_id = auth.uid()`, and only the `status` field (they shouldn't be able to reassign themselves or edit the address).
+- **Customers** can `SELECT`/`INSERT` only their own rows in `tickets` (`customer_id = auth.uid()`).
+- **Store** accounts can `SELECT`/`UPDATE` only `tickets` where `store_id = profiles.store_id` (looked up for the logged-in user).
+- **Riders** can `SELECT`/`UPDATE` only `tickets` where `assigned_rider_id = auth.uid()`, and only the `status` field plus inserting rows into `bags`/`clothes` for their own ticket (they shouldn't be able to reassign themselves or edit the address).
 - **Owner** bypasses filters entirely (a policy that just checks `role = 'owner'`).
 
-This means even if there's a bug in the frontend, the database itself won't leak one store's bookings to another.
+This means even if there's a bug in the frontend, the database itself won't leak one store's tickets to another.
 
 ## 🔄 5. Flow by role
 
-**Customer:** sign up/log in → pick service → pick address (typed, or "use my location" like the existing store locator) → app finds nearest store automatically (haversine, same logic already in `assets/script.js`) → pick date + slot → confirm → booking created with `status='pending'`, `store_id` set, `assigned_worker_id` null.
+This flow is already fully built and clickable in the POC (`components/TicketDetail.jsx` + `lib/AppProvider.jsx`) — what's described here is the same flow, just backed by real tables/auth instead of mock data. See `SKILLS.md` → "The ticket lifecycle" for the complete 12-stage version; summarized:
 
-**Store:** logs in each morning → dashboard queries `bookings WHERE store_id = mine AND pickup_date = today` → sees list, picks a worker from a dropdown (workers where `store_id = mine`) per booking → `status` moves to `'assigned'`.
+**Customer:** sign up/log in → pick service → pick address (typed, or "use my location") → app finds nearest store automatically (haversine) → pick date + slot → confirm → ticket created at `pickup_scheduled`.
 
-**Worker:** logs in → dashboard queries `bookings WHERE assigned_worker_id = me AND pickup_date = today` → simple list, tap to mark `'picked_up'` → later `'delivered'`. Should work well on a phone browser — no need for a native app.
+**Store:** accepts the request by assigning a rider (→ `pickup_request_accepted`); later, once the rider has it `picked_up`, manually advances it through `arrived_at_store` → `washing` → `ironing` → `packed`, then assigns a (possibly different) rider for delivery (→ `ready_for_delivery`).
 
-**Owner:** logs in → sees all bookings across all stores/workers, with filters (by store, by date range, by status) → can create/edit stores and worker/store accounts → basic counts (bookings today, per store, by status) as a starting point for analytics.
+**Rider:** collects an accepted ticket (→ `driver_arriving_for_pickup`), scans the bag (→ `pickup_in_progress`, creates a `bags` row), tags & scans each garment (creates `clothes` rows), confirms pickup (→ `picked_up`); later starts (→ `out_for_delivery`) and completes (→ `delivered`) the delivery leg.
+
+**Owner:** sees every ticket across every store, each with its full timeline and bag/garment contents, read-only; can create/edit stores and rider/store accounts; basic counts (tickets today, per store, by status) as a starting point for analytics.
 
 ## 🏗️ 6. Build phases
 
-1. **Foundation**: Supabase project, `profiles`/`stores`/`services`/`bookings` tables + RLS policies. Next.js project scaffolded, existing static site's HTML/CSS ported into it as the public marketing pages.
-2. **Auth**: signup/login pages per role (or one login page that redirects based on `profiles.role` after auth). Owner creates the first store + worker accounts manually (no public store/worker signup — see OPEN_QUESTIONS.md).
-3. **Customer booking flow**: service picker → address/location → nearest-store assignment → date/slot picker → confirmation (+ email via Resend).
-4. **Store dashboard**: today's pickups list, assign-to-worker action.
-5. **Worker dashboard**: today's assigned pickups, status updates.
-6. **Owner dashboard**: cross-store view, filters, store/worker management (CRUD), basic counts.
+Phases 2–6 below are **already built** in the current POC — they're listed here for reference on what specifically needs re-plumbing onto real infra, not as remaining work.
+
+1. **Foundation**: Supabase project, `profiles`/`stores`/`services`/`tickets`/`bags`/`clothes` tables + RLS policies. Next.js app already exists — this phase is "stand up Supabase," not "build the app."
+2. **Auth**: signup/login pages per role (or one login page that redirects based on `profiles.role` after auth) — already built with mock auth in `lib/AppProvider.jsx`; swap for real Supabase Auth calls. Owner creates the first store + rider accounts manually (no public store/rider signup — see OPEN_QUESTIONS.md).
+3. **Customer booking flow**: service picker → address/location → nearest-store assignment → date/slot picker → confirmation — already built; add an email via Resend on confirmation.
+4. **Store dashboard**: pickup requests list, assign-to-rider action, manual processing-stage buttons — already built.
+5. **Rider dashboard**: schedule, collect/scan-bag/tag-items/finish-pickup flow, delivery actions — already built.
+6. **Owner dashboard**: cross-store view, filters, store/rider management (CRUD), basic counts.
 7. **Polish**: email notifications on status changes, loading/error states, mobile pass on all three dashboards.
 
 Each phase is a natural place to file a `change-requests/` entry once this is live, so the existing request-inbox workflow keeps working the same way for backend features.

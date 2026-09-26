@@ -4,14 +4,17 @@ import { useApp } from '@/lib/AppProvider';
 import { STATUS_LABELS, STATUS_ORDER } from '@/lib/constants';
 
 export default function OwnerOverviewPage() {
-  const { orders, stores, today } = useApp();
+  const { tickets, stores, today } = useApp();
 
-  const todayCount = orders.filter((o) => o.pickupDate === today).length;
-  const activeCount = orders.filter((o) => !['delivered', 'cancelled'].includes(o.status)).length;
-  const deliveredCount = orders.filter((o) => o.status === 'delivered').length;
+  const todayCount = tickets.filter((t) => t.pickupDate === today).length;
+  const activeCount = tickets.filter((t) => !['delivered', 'cancelled'].includes(t.status)).length;
+  const deliveredCount = tickets.filter((t) => t.status === 'delivered').length;
 
-  const byStatus = STATUS_ORDER.map((s) => ({ status: s, count: orders.filter((o) => o.status === s).length }));
-  const byStore = stores.map((s) => ({ store: s, count: orders.filter((o) => o.storeId === s.id).length }));
+  const byStatus = [...STATUS_ORDER, 'cancelled'].map((s) => ({
+    status: s,
+    count: tickets.filter((t) => t.status === s).length,
+  }));
+  const byStore = stores.map((s) => ({ store: s, count: tickets.filter((t) => t.storeId === s.id).length }));
   const maxStoreCount = Math.max(1, ...byStore.map((s) => s.count));
 
   return (
@@ -23,8 +26,8 @@ export default function OwnerOverviewPage() {
 
       <div className="stat-grid">
         <div className="stat-tile">
-          <strong>{orders.length}</strong>
-          <span>Total orders</span>
+          <strong>{tickets.length}</strong>
+          <span>Total tickets</span>
         </div>
         <div className="stat-tile">
           <strong>{todayCount}</strong>
@@ -32,7 +35,7 @@ export default function OwnerOverviewPage() {
         </div>
         <div className="stat-tile">
           <strong>{activeCount}</strong>
-          <span>Active orders</span>
+          <span>Active tickets</span>
         </div>
         <div className="stat-tile">
           <strong>{deliveredCount}</strong>

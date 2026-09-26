@@ -66,8 +66,8 @@ export default function BookPickupPage() {
           Assigned to <strong>{store?.name}</strong> — they&apos;ll be in touch to confirm.
         </div>
         <div className="card-section" style={{ marginTop: 16 }}>
-          <Link href="/customer/orders" className="btn btn-primary btn-block">
-            View My Orders
+          <Link href="/customer/tickets" className="btn btn-primary btn-block">
+            View My Tickets
           </Link>
         </div>
       </>

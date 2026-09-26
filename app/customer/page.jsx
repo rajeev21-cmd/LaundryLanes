@@ -2,16 +2,16 @@
 
 import Link from 'next/link';
 import { useApp } from '@/lib/AppProvider';
-import OrderCard from '@/components/OrderCard';
+import TicketCard from '@/components/TicketCard';
 
 export default function CustomerHomePage() {
-  const { orders, currentUser, today } = useApp();
-  const myOrders = orders.filter((o) => o.customerId === currentUser.id);
-  const upcoming = myOrders
-    .filter((o) => o.pickupDate >= today && o.status !== 'cancelled' && o.status !== 'delivered')
+  const { tickets, currentUser, today } = useApp();
+  const myTickets = tickets.filter((t) => t.customerId === currentUser.id);
+  const upcoming = myTickets
+    .filter((t) => t.pickupDate >= today && !['delivered', 'cancelled'].includes(t.status))
     .sort((a, b) => a.pickupDate.localeCompare(b.pickupDate));
-  const activeCount = myOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status)).length;
-  const deliveredCount = myOrders.filter((o) => o.status === 'delivered').length;
+  const activeCount = myTickets.filter((t) => !['delivered', 'cancelled'].includes(t.status)).length;
+  const deliveredCount = myTickets.filter((t) => t.status === 'delivered').length;
 
   return (
     <>
@@ -23,11 +23,11 @@ export default function CustomerHomePage() {
       <div className="stat-grid">
         <div className="stat-tile">
           <strong>{activeCount}</strong>
-          <span>Active orders</span>
+          <span>Active tickets</span>
         </div>
         <div className="stat-tile">
           <strong>{deliveredCount}</strong>
-          <span>Completed orders</span>
+          <span>Completed tickets</span>
         </div>
       </div>
 
@@ -44,8 +44,8 @@ export default function CustomerHomePage() {
         <div className="empty-state">No upcoming pickups yet. Book one to get started!</div>
       ) : (
         <div className="order-list">
-          {upcoming.map((order) => (
-            <OrderCard key={order.id} order={order} showCustomer={false} />
+          {upcoming.map((ticket) => (
+            <TicketCard key={ticket.id} ticket={ticket} href={`/customer/tickets/${ticket.id}`} showCustomer={false} />
           ))}
         </div>
       )}
