@@ -1,0 +1,14 @@
+[
+  { "id": "u-owner-1", "name": "Rajeev (Owner)", "email": "owner@laundrylanes.com", "password": "owner123", "role": "owner" },
+
+  { "id": "u-store-1", "name": "Koramangala Store", "email": "koramangala@laundrylanes.com", "password": "store123", "role": "store", "storeId": "store-koramangala" },
+  { "id": "u-store-2", "name": "Indiranagar Store", "email": "indiranagar@laundrylanes.com", "password": "store123", "role": "store", "storeId": "store-indiranagar" },
+
+  { "id": "u-worker-1", "name": "Arjun Kumar", "email": "arjun@laundrylanes.com", "password": "worker123", "role": "worker", "storeId": "store-koramangala" },
+  { "id": "u-worker-2", "name": "Priya Singh", "email": "priya@laundrylanes.com", "password": "worker123", "role": "worker", "storeId": "store-koramangala" },
+  { "id": "u-worker-3", "name": "Suresh Babu", "email": "suresh@laundrylanes.com", "password": "worker123", "role": "worker", "storeId": "store-indiranagar" },
+
+  { "id": "u-customer-1", "name": "Meera Sharma", "email": "meera@example.com", "password": "customer123", "role": "customer", "phone": "+91 98765 43210" },
+  { "id": "u-customer-2", "name": "Aarav Patel", "email": "aarav@example.com", "password": "customer123", "role": "customer", "phone": "+91 91234 56789" },
+  { "id": "u-customer-3", "name": "Sanya Kapoor", "email": "sanya@example.com", "password": "customer123", "role": "customer", "phone": "+91 99887 66554" }
+]

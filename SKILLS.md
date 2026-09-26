@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/images/logo.webp" width="64" alt="Laundrylanes" /></p>
+<p align="center"><img src="public/images/logo.webp" width="64" alt="Laundrylanes" /></p>
 <h1 align="center">Agent Onboarding — SKILLS.md</h1>
 <p align="center"><sub><a href="README.md">← Back to README</a> · <a href="CONTEXT.md">CONTEXT.md</a> · <a href="OPEN_QUESTIONS.md">Open Questions</a></sub></p>
 
@@ -8,32 +8,48 @@ This file gives any AI agent (or human) picking up this project everything neede
 
 ## 🧺 What this project is
 
-A marketing website for **Laundrylanes**, a dry-cleaning/laundry pickup-and-delivery business. Services: dry cleaning, wash & fold, wash & iron, ironing, shoe cleaning. Core pitch: convenient booking, quick delivery, doorstep pickup & drop. The site was modeled structurally on `bumbledry.com` (a similar laundry-delivery business) but with Laundrylanes' own branding, services, and copy, plus an added interactive store locator. A backend (bookings + role-based dashboards) is planned — see [`BACKEND_PLAN.md`](BACKEND_PLAN.md) — but not yet built.
+**Laundrylanes**, a dry-cleaning/laundry pickup-and-delivery business. This repo is a **Next.js proof-of-concept**: the public marketing site, plus four fully interactive role-based workflows — **customer** (book/track pickups), **store** (assign today's pickups to workers), **worker** (work their own schedule), **owner** (cross-store overview/management). There is **no real backend** — auth and data are mocked from `data/*.json`, seeded into `localStorage` on first load. See [`BACKEND_PLAN.md`](BACKEND_PLAN.md) for the real backend this stands in for, and [`CONTEXT.md`](CONTEXT.md) for why it's built this way (short version: fastest path to a fully clickable POC of every workflow before investing in Supabase/auth).
 
-## 🛠️ Stack (deliberately minimal)
+## 🛠️ Stack
 
-- **Static HTML/CSS/JS.** No React, no bundler, no package.json, no build step.
-- **Leaflet.js 1.9.4 + OpenStreetMap tiles** (loaded via CDN in `index.html`) for the store-locator map — no API key needed.
+- **Next.js (App Router) + React, plain JavaScript** — no TypeScript, no CSS framework, one global stylesheet.
+- **Mock "backend": `lib/AppProvider.jsx`.** A client-side React context that seeds state from `data/users.json` / `stores.json` / `services.json` / `orders.json`, persists all mutations to `localStorage`, and exposes `login`, `loginAsRole`, `logout`, `bookPickup`, `assignWorker`, `updateOrderStatus`, `cancelOrder`, `resetDemoData`. **Every page reads/writes through this context — nothing talks to a real API.**
+- **Leaflet.js 1.9.4 + OpenStreetMap tiles** (CDN-loaded in `app/layout.jsx`, used by `components/StoreLocator.jsx`) — no API key needed.
 - **Google Fonts** (Playfair Display + Inter) via CDN link tags.
-- Single page (`index.html`) with anchor-linked sections; no routing/framework.
 
-> Do not introduce a framework or build tool unless the task genuinely requires it (e.g. the planned booking backend). Keep additions consistent with "plain static site" unless the project owner asks to upgrade the stack.
+> Do not introduce TypeScript, a CSS framework, or a real backend call unless the task genuinely requires it. If/when a real backend is built (see `BACKEND_PLAN.md`), the intended seam is `lib/AppProvider.jsx` — swap its localStorage-backed functions for real API calls; the rest of the app (components, pages) shouldn't need to change since they only ever call `useApp()`.
 
 ## 🗂️ File structure
 
 ```
 laundry/
-├── index.html            # entire page markup, section by section
-├── assets/
-│   ├── style.css          # all styles; CSS vars for brand colors at top (:root)
-│   ├── script.js          # nav toggle, Leaflet map, store list, geolocation, search
-│   └── images/
-│       └── logo.webp      # brand logo
-├── change-requests/        # inbox for proposed changes + apply-change-requests skill
-├── CONTEXT.md              # running decision log — update as you make choices
-├── OPEN_QUESTIONS.md       # questions for the site owner — append/answer, don't delete history
-├── BACKEND_PLAN.md         # planned booking/dashboard backend, not yet built
-└── SKILLS.md               # this file
+├── app/
+│   ├── layout.jsx              # root layout: fonts, Leaflet CSS, AppProvider wrapper, PWA meta
+│   ├── page.jsx                 # public marketing home
+│   ├── login/page.jsx           # login form + demo-role quick buttons
+│   ├── customer/                # layout.jsx (RoleGuard+AppShell) + page.jsx, book/, orders/
+│   ├── store/                   # layout.jsx + page.jsx (today's pickups), orders/
+│   ├── worker/                  # layout.jsx + page.jsx (my schedule)
+│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, orders/, users/
+├── components/
+│   ├── AppShell.jsx              # top bar + hamburger drawer; nav items from lib/nav.js per role
+│   ├── RoleGuard.jsx             # redirects to /login if current user's role != route's role
+│   ├── OrderCard.jsx, StatusBadge.jsx   # shared order display, used by all 4 roles
+│   ├── MarketingHeader.jsx, MarketingFooter.jsx, StoreLocator.jsx   # public site only
+├── lib/
+│   ├── AppProvider.jsx           # the mock auth+data context described above
+│   ├── nav.js                    # NAV_ITEMS map: role → hamburger menu entries
+│   ├── constants.js              # STATUS_LABELS, SLOT_LABELS, ROLE_LABELS, ROLE_HOME
+│   └── haversine.js              # distance calc, shared by StoreLocator + booking form
+├── data/
+│   ├── users.json                 # demo accounts, all 4 roles, plaintext passwords (fake data only)
+│   ├── stores.json                # placeholder Bengaluru stores
+│   ├── services.json              # the 5 services
+│   └── orders.json                 # ~15 seed orders using dayOffset (see below), not fixed dates
+├── styles/globals.css            # brand tokens + marketing styles + app-shell/dashboard styles
+├── public/images/logo.webp
+├── change-requests/                # inbox for proposed changes + apply-change-requests skill
+├── CONTEXT.md, OPEN_QUESTIONS.md, BACKEND_PLAN.md, SKILLS.md, README.md
 ```
 
 ## 🎨 Brand system (source of truth — don't invent new values)
@@ -49,30 +65,47 @@ laundry/
 | Headings font | `Playfair Display` (serif) |
 | Body font | `Inter` |
 
-All defined as CSS custom properties in `:root` at the top of `assets/style.css` — change values there, not per-component.
+All defined as CSS custom properties in `:root` at the top of `styles/globals.css` — change values there, not per-component.
 
-## 📍 How the store locator works
+## 🔐 How mock auth + roles work
 
-- `STORES` array in `assets/script.js`: `{ name, address, lat, lng }` objects — **currently placeholder Bengaluru data**, not real Laundrylanes stores (flagged in `OPEN_QUESTIONS.md` #1). Replace this array once real addresses/coordinates are available.
-- Map rendering: Leaflet `L.map('map')` + OSM tile layer, one marker per store, popups with name/address.
-- "Use My Location": browser Geolocation API → haversine distance sort → re-render store list ordered by proximity → re-center map, drop a "you are here" marker.
-- Search box: client-side substring filter over name + address, no backend.
-- If real geocoding is needed later (addresses without lat/lng), consider Nominatim (OSM's free geocoder, rate-limited) or a paid geocoding API — not yet implemented.
+- `data/users.json`: each user has `role` (`customer`/`store`/`worker`/`owner`), `email`, `password` (plaintext — it's all fake data, fine for a public repo), and for `store`/`worker` roles, a `storeId`.
+- `lib/AppProvider.jsx`'s `login(email, password)` matches against that array; `loginAsRole(role)` (used by the login page's demo buttons) just grabs the first user with that role.
+- The logged-in user's id is persisted to `localStorage`, so refreshing stays logged in.
+- Every role's route group (`app/customer/`, etc.) has a `layout.jsx` that wraps children in `<RoleGuard role="...">` then `<AppShell>`. `RoleGuard` redirects to `/login` if there's no user or the wrong role — **this is the only access control that exists**; there is no server-side enforcement (there's no server). Don't treat this as real security.
 
-## 🚀 Running / previewing the site
+## 🧭 How the role-based hamburger nav works
+
+`components/AppShell.jsx` is shared by all four roles. It reads `NAV_ITEMS[currentUser.role]` from `lib/nav.js` to render the drawer's links — that's the entire mechanism for "different tabs per role." To add a page to a role's nav, add both the Next.js route under that role's folder *and* an entry in `lib/nav.js`.
+
+## 📦 How orders/bookings work
+
+- `data/orders.json` entries have a `dayOffset` (integer, e.g. `0`/`-1`/`1`) instead of a fixed date. `AppProvider` converts these to real `pickupDate` strings (relative to whenever the app is actually loaded) at seed time — **don't hardcode dates in seed data**, always use `dayOffset` so "today's pickups" stays meaningful no matter when someone runs the demo.
+- Status flow: `pending → assigned → picked_up → in_progress → delivered`, or `→ cancelled` from `pending`. `lib/constants.js`'s `STATUS_LABELS`/`STATUS_ORDER` are the source of truth for valid statuses — don't invent new ones without updating both that file and `components/OrderCard.jsx`/the worker page's `NEXT_STATUS` map.
+- Booking a pickup (`app/customer/book/page.jsx`) calls `bookPickup()`, which auto-assigns the nearest store via `lib/haversine.js` if the customer shared their location, else defaults to `stores[0]`.
+
+## 📍 How the store locator (public site) works
+
+- Same `haversine.js` distance calc as the booking flow, driven by `data/stores.json` instead of a hardcoded array.
+- "Use My Location": browser Geolocation API → distance sort → re-center map, drop a "you are here" marker.
+- If real geocoding is needed later (addresses without lat/lng), consider Nominatim (OSM's free geocoder) or a paid geocoding API — not yet implemented.
+
+## 🚀 Running / previewing the app
 
 ```bash
 cd /Users/hsingh17/laundry
-python3 -m http.server 8080
+npm install
+npm run dev
 ```
 
-Open `http://localhost:8080`. No install step, no dependencies to fetch (everything else is CDN-loaded at runtime).
+Open `http://localhost:3000`. Use the "🔄 Reset demo data" option in the hamburger drawer to wipe local mutations and reseed.
 
 ## ✅ Conventions to follow when extending this project
 
-1. **Keep it a static site** unless explicitly asked to add a backend/build step (see `BACKEND_PLAN.md` for the one already scoped).
+1. **All data access goes through `useApp()` (`lib/AppProvider.jsx`).** Don't read `data/*.json` directly from a page/component — that bypasses the mock persistence layer and breaks the "swap this for a real API later" seam.
 2. **Update `CONTEXT.md`** with any non-obvious decision (why, not just what) as you go — it's the project's memory across sessions/agents.
 3. **Route unresolved product decisions to `OPEN_QUESTIONS.md`** rather than guessing silently — append new numbered questions, keep old ones (with answers filled in) for history.
-4. **Match the illustrative, minimal-text visual style** already established (inline SVG line art in brand colors) — avoid adding stock photography or dense copy blocks unless the brand direction changes.
-5. **Don't hardcode fake data as if real** without flagging it — the store list, phone numbers, email, and social handles in the current build are all placeholders; if you add more placeholder content, note it in `OPEN_QUESTIONS.md` so it doesn't ship silently.
+4. **Match the illustrative, minimal-text visual style** on the marketing site (inline SVG line art in brand colors) — avoid stock photography there unless the brand direction changes.
+5. **Don't hardcode fake data as if real** without flagging it — everything in `data/*.json` is a placeholder; if you add more, note it in `OPEN_QUESTIONS.md` so it doesn't ship silently.
 6. **One change per PR** if you're processing a `change-requests/` entry — see the `apply-change-requests` skill for the full workflow.
+7. **Don't add TypeScript or a CSS framework** to this POC without the project owner asking — it's deliberately minimal so it stays fast to iterate on.

@@ -1,0 +1,7 @@
+[
+  { "id": "dry-cleaning", "name": "Dry Cleaning", "description": "Gentle, precise care for delicate and special-occasion fabrics." },
+  { "id": "wash-fold", "name": "Wash & Fold", "description": "Everyday laundry washed, dried and neatly folded." },
+  { "id": "wash-iron", "name": "Wash & Iron", "description": "Washed clean and pressed crisp in one order." },
+  { "id": "ironing", "name": "Ironing", "description": "Wrinkle-free, sharp-creased garments pressed by trained hands." },
+  { "id": "shoe-cleaning", "name": "Shoe Cleaning", "description": "Restoring shine and freshness to sneakers, leather and suede." }
+]

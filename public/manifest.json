@@ -1,0 +1,11 @@
+{
+  "name": "Laundrylanes",
+  "short_name": "Laundrylanes",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#FAF6EC",
+  "theme_color": "#0B2545",
+  "icons": [
+    { "src": "/images/logo.webp", "sizes": "512x512", "type": "image/webp" }
+  ]
+}

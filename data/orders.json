@@ -1,0 +1,21 @@
+[
+  { "id": "ord-1001", "customerId": "u-customer-1", "serviceId": "wash-fold", "storeId": "store-koramangala", "assignedWorkerId": null, "dayOffset": 0, "slot": "morning", "status": "pending", "pickupAddress": "12, 80 Feet Road, Koramangala 4th Block, Bengaluru" },
+  { "id": "ord-1002", "customerId": "u-customer-2", "serviceId": "dry-cleaning", "storeId": "store-koramangala", "assignedWorkerId": "u-worker-1", "dayOffset": 0, "slot": "morning", "status": "assigned", "pickupAddress": "45, Koramangala 5th Block, Bengaluru" },
+  { "id": "ord-1003", "customerId": "u-customer-3", "serviceId": "shoe-cleaning", "storeId": "store-koramangala", "assignedWorkerId": "u-worker-2", "dayOffset": 0, "slot": "afternoon", "status": "picked_up", "pickupAddress": "7, Jyoti Nivas College Road, Koramangala, Bengaluru" },
+  { "id": "ord-1006", "customerId": "u-customer-3", "serviceId": "wash-fold", "storeId": "store-koramangala", "assignedWorkerId": "u-worker-1", "dayOffset": 0, "slot": "morning", "status": "in_progress", "pickupAddress": "18, Koramangala 1st Block, Bengaluru" },
+
+  { "id": "ord-1004", "customerId": "u-customer-1", "serviceId": "wash-iron", "storeId": "store-indiranagar", "assignedWorkerId": null, "dayOffset": 0, "slot": "afternoon", "status": "pending", "pickupAddress": "23, 100 Feet Road, Indiranagar, Bengaluru" },
+  { "id": "ord-1005", "customerId": "u-customer-2", "serviceId": "ironing", "storeId": "store-indiranagar", "assignedWorkerId": "u-worker-3", "dayOffset": 0, "slot": "evening", "status": "assigned", "pickupAddress": "9, Defence Colony, Indiranagar, Bengaluru" },
+  { "id": "ord-1007", "customerId": "u-customer-2", "serviceId": "dry-cleaning", "storeId": "store-indiranagar", "assignedWorkerId": null, "dayOffset": 0, "slot": "evening", "status": "cancelled", "pickupAddress": "9, Defence Colony, Indiranagar, Bengaluru" },
+
+  { "id": "ord-1013", "customerId": "u-customer-1", "serviceId": "dry-cleaning", "storeId": "store-hsr", "assignedWorkerId": null, "dayOffset": 0, "slot": "morning", "status": "pending", "pickupAddress": "Sector 2, HSR Layout, Bengaluru" },
+  { "id": "ord-1014", "customerId": "u-customer-2", "serviceId": "wash-fold", "storeId": "store-whitefield", "assignedWorkerId": null, "dayOffset": 0, "slot": "afternoon", "status": "pending", "pickupAddress": "ITPL Main Road, Whitefield, Bengaluru" },
+  { "id": "ord-1015", "customerId": "u-customer-3", "serviceId": "ironing", "storeId": "store-jayanagar", "assignedWorkerId": null, "dayOffset": 0, "slot": "morning", "status": "pending", "pickupAddress": "4th Block, Jayanagar, Bengaluru" },
+
+  { "id": "ord-0991", "customerId": "u-customer-3", "serviceId": "wash-fold", "storeId": "store-koramangala", "assignedWorkerId": "u-worker-1", "dayOffset": -1, "slot": "morning", "status": "delivered", "pickupAddress": "18, Koramangala 1st Block, Bengaluru" },
+  { "id": "ord-0992", "customerId": "u-customer-1", "serviceId": "dry-cleaning", "storeId": "store-indiranagar", "assignedWorkerId": "u-worker-3", "dayOffset": -1, "slot": "afternoon", "status": "delivered", "pickupAddress": "23, 100 Feet Road, Indiranagar, Bengaluru" },
+  { "id": "ord-0981", "customerId": "u-customer-1", "serviceId": "shoe-cleaning", "storeId": "store-koramangala", "assignedWorkerId": "u-worker-2", "dayOffset": -2, "slot": "morning", "status": "delivered", "pickupAddress": "12, 80 Feet Road, Koramangala 4th Block, Bengaluru" },
+
+  { "id": "ord-1011", "customerId": "u-customer-2", "serviceId": "ironing", "storeId": "store-koramangala", "assignedWorkerId": null, "dayOffset": 1, "slot": "morning", "status": "pending", "pickupAddress": "45, Koramangala 5th Block, Bengaluru" },
+  { "id": "ord-1012", "customerId": "u-customer-3", "serviceId": "shoe-cleaning", "storeId": "store-indiranagar", "assignedWorkerId": null, "dayOffset": 1, "slot": "afternoon", "status": "pending", "pickupAddress": "7, Jyoti Nivas College Road, Koramangala, Bengaluru" }
+]

@@ -1,10 +1,10 @@
-<p align="center"><img src="assets/images/logo.webp" width="64" alt="Laundrylanes" /></p>
+<p align="center"><img src="public/images/logo.webp" width="64" alt="Laundrylanes" /></p>
 <h1 align="center">Backend Implementation Plan</h1>
 <p align="center"><sub><a href="README.md">← Back to README</a> · <a href="OPEN_QUESTIONS.md">Open Questions</a> · <a href="CONTEXT.md">CONTEXT.md</a></sub></p>
 
 ---
 
-Plan for turning the current static marketing site into a full booking/operations system with four roles: **Customer**, **Store**, **Worker**, **Owner/Admin**. This is a design document, not yet implemented — see [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) for the decisions that need your input before or during the build.
+Plan for turning the current mock-data POC into a full booking/operations system with a real backend, for four roles: **Customer**, **Store**, **Worker**, **Owner/Admin**. This is a design document — **the workflows themselves are already built and clickable** as a Next.js app with mock data (see [`README.md`](README.md) → "What this is" and [`CONTEXT.md`](CONTEXT.md)); what's described below is what it takes to make that real, with `lib/AppProvider.jsx` as the intended seam to swap mock functions for real API calls. See [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) for the decisions that need your input before or during that build.
 
 ## 👥 1. Roles & what each one needs
 
@@ -70,6 +70,8 @@ bookings
 ```
 
 This is deliberately minimal — no payments table, no per-store service catalog/pricing variance, no delivery-address-different-from-pickup — because those weren't mentioned as requirements. Easy to add later without restructuring what's here.
+
+> This maps almost directly onto the POC's `data/*.json`: `users.json` → `profiles`, `stores.json` → `stores`, `services.json` → `services`, `orders.json` → `bookings` (status enum values already match). Migrating means standing up these tables in Supabase, then replacing `lib/AppProvider.jsx`'s localStorage read/write with real queries — the pages and components shouldn't need to change.
 
 ## 🔐 4. Access control (Row Level Security policies)
 

@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/images/logo.webp" width="64" alt="Laundrylanes" /></p>
+<p align="center"><img src="public/images/logo.webp" width="64" alt="Laundrylanes" /></p>
 <h1 align="center">Open Questions</h1>
 <p align="center"><sub><a href="README.md">← Back to README</a> · <a href="CONTEXT.md">CONTEXT.md</a> · <a href="BACKEND_PLAN.md">BACKEND_PLAN.md</a></sub></p>
 
