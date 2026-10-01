@@ -340,6 +340,12 @@ button, input, select, textarea { font-family: inherit; font-size: 15px; }
 .cstatus-delivered { background: #DDF5DD; color: #21793A; }
 .cstatus-cancelled { background: #F6DCDC; color: #A32A2A; }
 
+/* Rider status dashboard (store/owner) */
+.status-badge.rider-active { background: #DDF5DD; color: #21793A; }
+.status-badge.rider-idle { background: #E2E6ED; color: #3B4A63; }
+.rider-task-list { margin: 10px 0 0; padding-left: 18px; font-size: 13px; }
+.rider-task-list li { margin-bottom: 4px; }
+
 /* ===== Ticket timeline ===== */
 .timeline { display: flex; flex-direction: column; }
 .timeline-step { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; }
@@ -382,6 +388,9 @@ button, input, select, textarea { font-family: inherit; font-size: 15px; }
 
 .select-inline { display: inline-block; }
 .select-inline select { padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(11,37,69,0.2); font-size: 13px; }
+
+.list-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.list-toolbar .filter-row { margin-bottom: 0; flex: 1 1 auto; }
 
 .card-section {
   background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px;

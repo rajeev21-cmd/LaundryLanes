@@ -5,23 +5,21 @@ import Link from 'next/link';
 import { useApp } from '@/lib/AppProvider';
 import TicketCard from '@/components/TicketCard';
 import AddressModal from '@/components/AddressModal';
-import { STATUS_LABELS } from '@/lib/constants';
-
-// Every status where the rider themself has something to do next — kept as
-// one combined list (not split pickups/deliveries) per explicit request.
-const PENDING_STATUSES = ['pickup_request_accepted', 'driver_arriving_for_pickup', 'pickup_in_progress', 'ready_for_delivery', 'out_for_delivery'];
+import { STATUS_LABELS, RIDER_ACTIVE_STATUSES as PENDING_STATUSES } from '@/lib/constants';
+import { TICKET_SORT_OPTIONS, sortTickets } from '@/lib/sortTickets';
 
 export default function RiderSchedulePage() {
   const { tickets, currentUser } = useApp();
   const [filter, setFilter] = useState('all');
+  const [sortKey, setSortKey] = useState('pickup-asc');
   const [addressTicket, setAddressTicket] = useState(null);
 
   const mine = tickets.filter((t) => t.assignedRiderId === currentUser.id);
-  const pending = mine
-    .filter((t) => PENDING_STATUSES.includes(t.status))
-    .filter((t) => filter === 'all' || t.status === filter)
-    .sort((a, b) => a.slot.localeCompare(b.slot));
-  const history = mine.filter((t) => !PENDING_STATUSES.includes(t.status));
+  const pending = sortTickets(
+    mine.filter((t) => PENDING_STATUSES.includes(t.status)).filter((t) => filter === 'all' || t.status === filter),
+    sortKey
+  );
+  const history = sortTickets(mine.filter((t) => !PENDING_STATUSES.includes(t.status)), sortKey);
 
   return (
     <>
@@ -32,15 +30,26 @@ export default function RiderSchedulePage() {
         </p>
       </div>
 
-      <div className="filter-row">
-        <button className={`filter-chip ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
-          All
-        </button>
-        {PENDING_STATUSES.map((s) => (
-          <button key={s} className={`filter-chip ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
-            {STATUS_LABELS[s]}
+      <div className="list-toolbar">
+        <div className="filter-row">
+          <button className={`filter-chip ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
+            All
           </button>
-        ))}
+          {PENDING_STATUSES.map((s) => (
+            <button key={s} className={`filter-chip ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
+              {STATUS_LABELS[s]}
+            </button>
+          ))}
+        </div>
+        <div className="select-inline">
+          <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+            {TICKET_SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {pending.length === 0 ? (

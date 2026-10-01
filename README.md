@@ -29,9 +29,11 @@
 **Laundrylanes** — dry cleaning, wash & fold, wash & iron, ironing, and shoe cleaning, with doorstep pickup & drop. This repo is a **Next.js proof-of-concept** covering the public marketing site *and* four role-based workflows end to end, built around a **ticket** lifecycle (12 stages, from `pickup_scheduled` to `delivered`) with real **Bag** and **Cloth** tracking:
 
 - 🧺 **Customer** — book a pickup, track tickets by their full timeline, cancel a not-yet-accepted one
-- 🏬 **Store** — pickups land in its queue automatically (by pincode match) or via owner assignment, then it assigns a rider, walks a ticket manually through arrived → washing → ironing → packed (optionally recounting items), then assigns a rider for delivery
+- 🏬 **Store** — pickups land in its queue automatically (by pincode match) or via owner assignment, then it assigns a rider, walks a ticket manually through arrived → washing → ironing → packed (optionally recounting items), then assigns a rider for delivery; a live "Riders" dashboard shows which of its riders are on a task right now vs. idle
 - 🚚 **Rider** — collect an accepted pickup, scan the bag, tag & scan each garment (which is what actually moves the ticket to "Picked Up"), and later start/complete the delivery leg
-- 👑 **Owner** — cross-store overview, stores, every ticket's full timeline (including its bag & garment contents), all users
+- 👑 **Owner** — cross-store overview, stores, every ticket's full timeline (including its bag & garment contents), a cross-store rider-status dashboard, all users
+
+Every ticket list (customer/store/rider/owner) has filter chips plus a sort dropdown (soonest/latest pickup, newest/oldest booked) — consistent across all four roles.
 
 There's still no real database — but ticket/bag/cloth data lives **server-side**, in a JSON file behind a handful of API routes, seeded from [`data/`](data). That means every browser/device hitting the same running server sees the same live tickets: assign a rider from a laptop and a rider on a different phone/browser sees it appear. Only login identity is per-device (pick any demo account, on any device, independently). See [`BACKEND_PLAN.md`](BACKEND_PLAN.md) for the real (Postgres-backed) backend this is standing in for, and [`CONTEXT.md`](CONTEXT.md) for why it's built this way — including which lifecycle stages are automatic vs. manual, and the one caveat with this approach on Vercel specifically (data resets on cold starts there — a real database is still the fix for that, not this JSON file).
 

@@ -88,6 +88,13 @@ Every ticket has a `history: [{ at, status, byUserId, byName, byRole, note }]` a
 - `addCloth` is a good example of a history entry with **no status change** — `patch` is `{}`, only `note` is set (`"Item tagged & scanned: ..."`). Not every history entry corresponds to a status transition.
 - Seed tickets (`data/tickets.json`) don't ship with a `history` array — `lib/seedData.js`'s `buildSeedState()` synthesizes one via `seedHistoryFor()`, walking `STATUS_ORDER` up to the ticket's current status with `byName: 'Seed data'`. If you add more seed tickets, you don't need to hand-write their history; this happens automatically from `status` + `dayOffset`.
 
+## 🔀 Filters, sort, and the rider-status dashboard
+
+- **Every ticket list view has a filter + a sort control.** Filters are page-specific (status chips, sometimes a store dropdown too). Sort is the same everywhere: `lib/sortTickets.js`'s `TICKET_SORT_OPTIONS` + `sortTickets(tickets, sortKey)` — **don't write a new inline `.sort()` comparator on a ticket array**, import this instead, so "soonest pickup first" stays consistent across pages. The sort `<select>` uses the (pre-existing, previously unused) `.select-inline` CSS class, sitting next to that page's `.filter-row` inside a `.list-toolbar` flex wrapper — copy that pattern for any new ticket list page.
+- **Customers filter by their own simplified status**, not the internal one — `app/customer/tickets/page.jsx` filters via `toCustomerStatus(t.status) === filter` against `CUSTOMER_STATUS_ORDER`, same rule as "customers never see internal statuses" everywhere else.
+- **`lib/constants.js`'s `RIDER_ACTIVE_STATUSES`** is the single definition of "this rider currently has something to do": `pickup_request_accepted`, `driver_arriving_for_pickup`, `pickup_in_progress`, `ready_for_delivery`, `out_for_delivery`. `app/rider/page.jsx`'s own pending list and the two rider dashboards below both import it — **don't redefine this set locally**, a ticket between `picked_up` and `packed` still has `assignedRiderId` set but is deliberately excluded (it's with the store, not the rider, until re-assigned for delivery).
+- **`app/store/riders/page.jsx`** (own store's riders) **and `app/owner/riders/page.jsx`** (every rider, tagged with its store) answer "where is each rider, on what ticket, doing what" — one card per rider, computed live from `tickets.filter(t => t.assignedRiderId === rider.id && RIDER_ACTIVE_STATUSES.includes(t.status))`, no new state/entity. A rider can show >1 active ticket (nothing stops a store from assigning a second active ticket to a busy rider) — the card lists all of them, it doesn't assume exactly one. Both are in `lib/nav.js` as "🚚 Riders."
+
 ## 🗂️ File structure
 
 ```
@@ -103,9 +110,9 @@ laundry/
 │   │   ├── addresses/route.js     # POST — add an address-book entry
 │   │   └── reset/route.js         # POST — reseed
 │   ├── customer/                # layout.jsx (RoleGuard+AppShell) + page.jsx, book/, tickets/, tickets/[id]/
-│   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/
+│   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/, riders/
 │   ├── rider/                   # layout.jsx + page.jsx (my schedule), tickets/[id]/
-│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, tickets/, tickets/[id]/, users/
+│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, tickets/, tickets/[id]/, riders/, users/
 ├── components/
 │   ├── AppShell.jsx              # top bar + hamburger drawer; nav items from lib/nav.js per role
 │   ├── RoleGuard.jsx             # redirects to /login if current user's role != route's role
@@ -125,6 +132,7 @@ laundry/
 │   ├── nav.js                    # NAV_ITEMS map: role → hamburger menu entries
 │   ├── constants.js              # STATUS_LABELS/STATUS_ORDER/STATUS_DRIVER, CUSTOMER_STATUS_*/toCustomerStatus(), SLOT_LABELS, CLOTH_CATEGORIES, ROLE_LABELS, ROLE_HOME
 │   ├── haversine.js              # distance calc, used only by the public StoreLocator's "Use My Location" now
+│   ├── sortTickets.js             # shared TICKET_SORT_OPTIONS + sortTickets(), used by every ticket list page
 │   └── format.js                 # formatDateTime() for history timestamps
 ├── data/
 │   ├── users.json                 # demo accounts: customer/store/rider/owner roles, plaintext passwords (fake data only)
