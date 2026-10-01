@@ -17,6 +17,8 @@ export default function OwnerStoresPage() {
         {stores.map((store) => {
           const riderCount = users.filter((u) => u.role === 'rider' && u.storeId === store.id).length;
           const todayCount = tickets.filter((t) => t.storeId === store.id && t.pickupDate === today).length;
+          const rated = tickets.filter((t) => t.storeId === store.id && t.serviceRating != null);
+          const avgRating = rated.length ? rated.reduce((s, t) => s + t.serviceRating, 0) / rated.length : null;
           return (
             <Link key={store.id} href={`/owner/stores/${store.id}`} className="card-section clickable">
               <h3>{store.name}</h3>
@@ -24,6 +26,7 @@ export default function OwnerStoresPage() {
               <div className="ticket-card-tags">
                 <span className="ticket-card-tag">🚚 {riderCount} rider(s)</span>
                 <span className="ticket-card-tag">🎫 {todayCount} ticket(s) today</span>
+                <span className="ticket-card-tag">{avgRating != null ? `${avgRating.toFixed(1)} ★ avg rating` : 'No ratings yet'}</span>
               </div>
               <p className="card-link-hint">View all tickets →</p>
             </Link>

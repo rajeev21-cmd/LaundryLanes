@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useApp } from '@/lib/AppProvider';
-import { ROLE_LABELS, EMPLOYEE_ROLES, calcOrderValue } from '@/lib/constants';
+import { ROLE_LABELS, EMPLOYEE_ROLES } from '@/lib/constants';
 
-export default function OwnerUsersPage() {
-  const { users, stores, tickets, clothes, addEmployee } = useApp();
-  const sorted = [...users].sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
+export default function OwnerEmployeesPage() {
+  const { users, stores, addEmployee } = useApp();
+  const employees = [...users]
+    .filter((u) => u.role !== 'customer')
+    .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,19 +33,11 @@ export default function OwnerUsersPage() {
     setStoreId('');
   }
 
-  function customerStats(customerId) {
-    const theirTickets = tickets.filter((t) => t.customerId === customerId);
-    const delivered = theirTickets.filter((t) => t.status === 'delivered');
-    const cancelled = theirTickets.filter((t) => t.status === 'cancelled').length;
-    const spent = delivered.reduce((sum, t) => sum + calcOrderValue(clothes.filter((c) => c.ticketId === t.id)), 0);
-    return { spent, availed: theirTickets.length, completed: delivered.length, cancelled };
-  }
-
   return (
     <>
       <div className="app-page-head">
-        <h1>Users</h1>
-        <p>{users.length} account(s)</p>
+        <h1>Employees</h1>
+        <p>{employees.length} account(s)</p>
       </div>
 
       <div className="card-section">
@@ -102,29 +96,17 @@ export default function OwnerUsersPage() {
               <th>Role</th>
               <th>Store</th>
               <th>Email</th>
-              <th>Spent</th>
-              <th>Availed</th>
-              <th>Completed</th>
-              <th>Cancelled</th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((u) => {
-              const isCustomer = u.role === 'customer';
-              const stats = isCustomer ? customerStats(u.id) : null;
-              return (
-                <tr key={u.id}>
-                  <td>{u.name}</td>
-                  <td>{ROLE_LABELS[u.role]}</td>
-                  <td>{stores.find((s) => s.id === u.storeId)?.name || '—'}</td>
-                  <td>{u.email}</td>
-                  <td>{isCustomer ? `₹${stats.spent}` : '—'}</td>
-                  <td>{isCustomer ? stats.availed : '—'}</td>
-                  <td>{isCustomer ? stats.completed : '—'}</td>
-                  <td>{isCustomer ? stats.cancelled : '—'}</td>
-                </tr>
-              );
-            })}
+            {employees.map((u) => (
+              <tr key={u.id}>
+                <td>{u.name}</td>
+                <td>{ROLE_LABELS[u.role]}</td>
+                <td>{stores.find((s) => s.id === u.storeId)?.name || '—'}</td>
+                <td>{u.email}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

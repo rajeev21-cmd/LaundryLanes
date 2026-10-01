@@ -23,6 +23,8 @@ export default function OwnerStoreDetailPage({ params }) {
   const todayCount = storeTicketsAll.filter((t) => t.pickupDate === today).length;
   const activeCount = storeTicketsAll.filter((t) => !['delivered', 'cancelled'].includes(t.status)).length;
   const deliveredCount = storeTicketsAll.filter((t) => t.status === 'delivered').length;
+  const rated = storeTicketsAll.filter((t) => t.serviceRating != null);
+  const avgRating = rated.length ? rated.reduce((s, t) => s + t.serviceRating, 0) / rated.length : null;
 
   const filtered = sortTickets(storeTicketsAll.filter((t) => filter === 'all' || t.status === filter), sortKey);
 
@@ -57,6 +59,10 @@ export default function OwnerStoreDetailPage({ params }) {
         <div className="stat-tile">
           <strong>{riderCount}</strong>
           <span>Riders</span>
+        </div>
+        <div className="stat-tile">
+          <strong>{avgRating != null ? `${avgRating.toFixed(1)} ★` : '—'}</strong>
+          <span>Avg store rating</span>
         </div>
       </div>
 

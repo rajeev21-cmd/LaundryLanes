@@ -22,6 +22,37 @@ export default function AppShell({ children }) {
     router.replace('/login');
   }
 
+  // Shared between the mobile drawer and the persistent desktop sidebar —
+  // same nav, same actions, just a different wrapping container (one is an
+  // overlay you open/close, the other is always visible). Keeping this in
+  // one place means the two can't drift out of sync with each other.
+  function navLinks(onNavigate) {
+    return (
+      <>
+        <ul className="app-drawer-list">
+          {items.map((item) => (
+            <li key={item.href}>
+              <Link href={item.href} className={pathname === item.href ? 'active' : ''} onClick={onNavigate}>
+                <span className="app-drawer-icon">{item.icon}</span> {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="app-drawer-footer">
+          <button className="app-drawer-action" onClick={resetDemoData}>
+            🔄 Reset demo data
+          </button>
+          <Link href="/" className="app-drawer-action">
+            🌐 Marketing site
+          </Link>
+          <button className="app-drawer-action app-drawer-logout" onClick={handleLogout}>
+            🚪 Log out
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="app-shell">
       <header className="app-topbar">
@@ -46,37 +77,18 @@ export default function AppShell({ children }) {
                 <div className="app-drawer-role">{ROLE_LABELS[currentUser.role]}</div>
               </div>
             </div>
-
-            <ul className="app-drawer-list">
-              {items.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={pathname === item.href ? 'active' : ''}
-                    onClick={() => setOpen(false)}
-                  >
-                    <span className="app-drawer-icon">{item.icon}</span> {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-
-            <div className="app-drawer-footer">
-              <button className="app-drawer-action" onClick={resetDemoData}>
-                🔄 Reset demo data
-              </button>
-              <Link href="/" className="app-drawer-action">
-                🌐 Marketing site
-              </Link>
-              <button className="app-drawer-action app-drawer-logout" onClick={handleLogout}>
-                🚪 Log out
-              </button>
-            </div>
+            {navLinks(() => setOpen(false))}
           </nav>
         </div>
       )}
 
-      <main className="app-content">{children}</main>
+      <div className="app-shell-body">
+        {/* Desktop-only persistent sidebar — same links as the mobile drawer
+            above, just always visible instead of hidden behind the hamburger
+            (see .app-sidebar's media query in globals.css). */}
+        <nav className="app-sidebar">{navLinks(undefined)}</nav>
+        <main className="app-content">{children}</main>
+      </div>
     </div>
   );
 }

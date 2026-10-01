@@ -128,6 +128,22 @@ Every ticket has a `history: [{ at, status, byUserId, byName, byRole, note }]` a
 
 There's an ordinary async round-trip (the `/api/state` fetch + re-render) between clicking a demo-role button and the dashboard actually appearing — checking too quickly (a screenshot, a glance) can catch the old page still painted even though the click already registered. Separately, if `lib/AppProvider.jsx` gets a new `useState`/hook inserted anywhere other than the *end* of its existing hook list, a browser tab that's been open and Fast-Refreshing across that edit can end up with genuinely corrupted state (a React Fast Refresh hazard — hooks are matched by call order, not name — dev-mode only, impossible in production). **Tell the two apart by whether a hard reload / dev-server restart actually fixes it**: if yes, it was one of these two harmless-in-production causes; if a restart does *not* fix it, stop assuming staleness and suspect persisted data instead (see the `loadDb()` entry above — that was the real, reproducible bug hiding behind what first looked like the same symptom).
 
+## 🧭 Desktop sidebar + mobile drawer — one nav list, two renderings
+
+`components/AppShell.jsx` renders `NAV_ITEMS[currentUser.role]` **twice**: once inside the existing mobile hamburger/drawer overlay, once inside a persistent `.app-sidebar` that only shows at `≥900px` (and hides `.app-hamburger` at that width) via CSS in `styles/globals.css` — both calls go through the same local `navLinks()` helper, so **don't edit one without the other**; there's only one place to change link markup. If you add a new nav item, it's automatically correct in both — you only ever touch `lib/nav.js`. `.app-sidebar` is in the `@media print` hide-list alongside `.app-topbar`/`.app-drawer` — don't remove it from there or it'll show up on printed QR sheets.
+
+## ⭐ Ratings surface on every list, not just the detail page
+
+Every page that lists riders/stores/customers also shows that entity's average rating inline — not just the `[id]` detail pages. **Rider avg = avg `riderRating`** across their tickets; **store avg = avg `serviceRating`** (deliberately *not* `riderRating` — service rating is the store's processing quality, not the specific rider's conduct) across that store's tickets; **customer columns = avg `riderRating`/`serviceRating` *given*** (two separate numbers) across that customer's own rated tickets. All three are computed the same way everywhere they appear — on the owner's `app/owner/riders`/`app/owner/stores` *and* the detail pages — don't compute them differently in a new location; copy the existing `tickets.filter(...).reduce(...)` pattern.
+
+## 👷🧺 Employees vs. Customers — two pages, not one
+
+`app/owner/employees` (the "Add Employee" form + a plain roster, roles `rider`/`store`/`owner`) and `app/owner/customers` (read-only, spend/availed/completed/cancelled + the two avg-rating-given columns above) **used to be one combined `app/owner/users` page** — split because employee management and per-customer analytics stopped fitting in one table as both grew. If you need "every account regardless of role" for some future purpose, you'll need to query both pages' data (`users.filter(u => u.role !== 'customer')` / `users.filter(u => u.role === 'customer')`) — there's no single page for that anymore, by design.
+
+## 🖨️ Printing a freshly-generated batch of bags/tags
+
+`generateBags(count)`/`generateClothTags(count)` (both in `lib/AppProvider.jsx`) return the newly-created rows. `app/owner/bags/page.jsx`/`app/owner/tags/page.jsx` hold onto those ids after generating and link straight to `/owner/bags/print?ids=<comma-separated ids>` (same pattern for tags) — **don't make the owner go find their new batch in the full print sheet**, that's the whole point of this. The print pages (`app/owner/bags/print`, `app/owner/tags/print`) read `ids` via `useSearchParams()` and filter to just those; omit the param (the nav-linked "Print QR sheet" button does this) to get every bag/tag. **`useSearchParams()` needs a `<Suspense>` boundary around the component that calls it**, or `next build` fails — both pages already wrap it; follow the same shape if you add a third print view.
+
 ## 🗂️ File structure
 
 ```
@@ -149,7 +165,7 @@ laundry/
 │   ├── customer/                # layout.jsx (RoleGuard+AppShell) + page.jsx, book/, tickets/, tickets/[id]/
 │   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), lookup/
 │   ├── rider/                   # layout.jsx + page.jsx (my schedule), tickets/[id]/
-│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, stores/[id]/ (read-only), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), users/, bags/, bags/print/, tags/, tags/print/, lookup/
+│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, stores/[id]/ (read-only), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), employees/, customers/, bags/, bags/print/, tags/, tags/print/, lookup/
 ├── components/
 │   ├── AppShell.jsx              # top bar + hamburger drawer; nav items from lib/nav.js per role
 │   ├── RoleGuard.jsx             # redirects to /login if current user's role != route's role

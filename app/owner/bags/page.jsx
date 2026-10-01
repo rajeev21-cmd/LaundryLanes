@@ -9,6 +9,7 @@ export default function OwnerBagsPage() {
   const { bags, stores, tickets, generateBags, assignBagToStore } = useApp();
   const [count, setCount] = useState(10);
   const [generating, setGenerating] = useState(false);
+  const [newBagIds, setNewBagIds] = useState(null);
 
   const sorted = [...bags].sort((a, b) => a.id.localeCompare(b.id));
   const inUseCount = bags.filter((b) => b.ticketId).length;
@@ -18,8 +19,9 @@ export default function OwnerBagsPage() {
   async function handleGenerate(e) {
     e.preventDefault();
     setGenerating(true);
-    await generateBags(count);
+    const created = await generateBags(count);
     setGenerating(false);
+    setNewBagIds(created.map((b) => b.id));
   }
 
   function statusFor(bag) {
@@ -80,6 +82,12 @@ export default function OwnerBagsPage() {
             {generating ? 'Generating…' : `Generate ${count || 0} bag(s)`}
           </button>
         </form>
+        {newBagIds && (
+          <p className="form-success" style={{ marginTop: 14 }}>
+            ✅ {newBagIds.length} new bag(s) generated —{' '}
+            <Link href={`/owner/bags/print?ids=${newBagIds.join(',')}`}>🖨️ print QR codes for just these new ones →</Link>
+          </p>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -87,7 +95,7 @@ export default function OwnerBagsPage() {
           ⬇️ Download CSV
         </button>
         <Link href="/owner/bags/print" className="btn btn-outline btn-sm">
-          🖨️ Print QR sheet
+          🖨️ Print QR sheet (all bags)
         </Link>
       </div>
 

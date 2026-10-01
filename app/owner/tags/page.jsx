@@ -9,6 +9,7 @@ export default function OwnerTagsPage() {
   const { clothTags, clothes, tickets, generateClothTags } = useApp();
   const [count, setCount] = useState(20);
   const [generating, setGenerating] = useState(false);
+  const [newTagIds, setNewTagIds] = useState(null);
 
   const sorted = [...clothTags].sort((a, b) => a.id.localeCompare(b.id));
   const usedCount = sorted.filter((t) => clothes.some((c) => c.tag === t.id)).length;
@@ -16,8 +17,9 @@ export default function OwnerTagsPage() {
   async function handleGenerate(e) {
     e.preventDefault();
     setGenerating(true);
-    await generateClothTags(count);
+    const created = await generateClothTags(count);
     setGenerating(false);
+    setNewTagIds(created.map((t) => t.id));
   }
 
   function statusFor(tag) {
@@ -72,6 +74,12 @@ export default function OwnerTagsPage() {
             {generating ? 'Generating…' : `Generate ${count || 0} tag(s)`}
           </button>
         </form>
+        {newTagIds && (
+          <p className="form-success" style={{ marginTop: 14 }}>
+            ✅ {newTagIds.length} new tag(s) generated —{' '}
+            <Link href={`/owner/tags/print?ids=${newTagIds.join(',')}`}>🖨️ print QR codes for just these new ones →</Link>
+          </p>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -79,7 +87,7 @@ export default function OwnerTagsPage() {
           ⬇️ Download CSV
         </button>
         <Link href="/owner/tags/print" className="btn btn-outline btn-sm">
-          🖨️ Print QR sheet
+          🖨️ Print QR sheet (all tags)
         </Link>
       </div>
 

@@ -273,7 +273,23 @@ button, input, select, textarea { font-family: inherit; font-size: 15px; }
 .app-drawer-action:hover { background: var(--navy-050); }
 .app-drawer-logout { color: var(--orange-dark); }
 
+.app-shell-body { flex: 1; display: flex; }
 .app-content { flex: 1; padding: 20px 16px 40px; max-width: 900px; margin: 0 auto; width: 100%; }
+
+/* Persistent desktop sidebar — hidden by default (mobile keeps the
+   hamburger + drawer overlay above); reuses .app-drawer-list/-footer/
+   -action/-icon so the two navs can't visually drift apart. */
+.app-sidebar { display: none; }
+@media (min-width: 900px) {
+  .app-hamburger { display: none; }
+  .app-shell-body { align-items: flex-start; }
+  .app-sidebar {
+    display: flex; flex-direction: column; justify-content: space-between;
+    width: 230px; flex-shrink: 0; align-self: stretch;
+    background: var(--white); border-right: 1px solid var(--navy-050);
+    position: sticky; top: 69px; height: calc(100vh - 69px);
+  }
+}
 
 .app-page-head { margin-bottom: 20px; }
 .app-page-head h1 { font-size: 24px; }
@@ -441,7 +457,7 @@ table.data-table tr:last-child td { border-bottom: none; }
 .qr-print-cell img { display: block; margin: 0 auto 6px; }
 .qr-print-cell p { font-size: 12px; font-weight: 700; margin: 0; }
 @media print {
-  .no-print, .app-topbar, .app-drawer, .app-drawer-backdrop { display: none !important; }
+  .no-print, .app-topbar, .app-drawer, .app-drawer-backdrop, .app-sidebar { display: none !important; }
 }
 
 /* ===== Login page ===== */

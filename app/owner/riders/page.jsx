@@ -10,11 +10,15 @@ export default function OwnerRidersPage() {
     (a, b) => (a.storeId || '').localeCompare(b.storeId || '') || a.name.localeCompare(b.name)
   );
 
-  const ridersWithTasks = riders.map((rider) => ({
-    rider,
-    store: stores.find((s) => s.id === rider.storeId),
-    activeTickets: tickets.filter((t) => t.assignedRiderId === rider.id && RIDER_ACTIVE_STATUSES.includes(t.status)),
-  }));
+  const ridersWithTasks = riders.map((rider) => {
+    const rated = tickets.filter((t) => t.assignedRiderId === rider.id && t.riderRating != null);
+    return {
+      rider,
+      store: stores.find((s) => s.id === rider.storeId),
+      activeTickets: tickets.filter((t) => t.assignedRiderId === rider.id && RIDER_ACTIVE_STATUSES.includes(t.status)),
+      avgRating: rated.length ? rated.reduce((s, t) => s + t.riderRating, 0) / rated.length : null,
+    };
+  });
   const activeCount = ridersWithTasks.filter((r) => r.activeTickets.length > 0).length;
 
   return (
@@ -43,12 +47,14 @@ export default function OwnerRidersPage() {
         <div className="empty-state">No riders yet.</div>
       ) : (
         <div className="order-list dense">
-          {ridersWithTasks.map(({ rider, store, activeTickets }) => (
+          {ridersWithTasks.map(({ rider, store, activeTickets, avgRating }) => (
             <Link key={rider.id} href={`/owner/riders/${rider.id}`} className="card-section clickable">
               <div className="ticket-card-top">
                 <div>
                   <h3 style={{ margin: 0 }}>{rider.name}</h3>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '2px 0 0' }}>🏬 {store?.name || '—'}</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                    🏬 {store?.name || '—'} · {avgRating != null ? `${avgRating.toFixed(1)} ★ avg` : 'No ratings yet'}
+                  </p>
                 </div>
                 <span className={`status-badge ${activeTickets.length ? 'rider-active' : 'rider-idle'}`}>
                   {activeTickets.length ? `🟢 On ${activeTickets.length} task${activeTickets.length === 1 ? '' : 's'}` : '⚪ Idle'}
