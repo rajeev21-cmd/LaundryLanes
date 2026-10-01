@@ -26,6 +26,7 @@ export function AppProvider({ children }) {
   const [clothes, setClothes] = useState([]);
   const [addresses, setAddresses] = useState([]);
   const [users, setUsers] = useState([]);
+  const [clothTags, setClothTags] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const currentUserIdRef = useRef(null);
@@ -38,6 +39,7 @@ export function AppProvider({ children }) {
     setClothes(data.clothes || []);
     setAddresses(data.addresses || []);
     setUsers(data.users || []);
+    setClothTags(data.clothTags || []);
   }, []);
 
   const fetchState = useCallback(async () => {
@@ -104,8 +106,12 @@ export function AppProvider({ children }) {
   }, [applyState]);
 
   // Every ticket action is a PATCH to the server; the response is the full,
-  // authoritative { tickets, bags, clothes }, which we just adopt wholesale —
-  // simpler and safer than trying to patch local state to match.
+  // authoritative { tickets, bags, clothes, ... }, which we just adopt
+  // wholesale — simpler and safer than trying to patch local state to match.
+  // A few actions (scanBag, addCloth) can fail bag/tag pool validation and
+  // respond with { error } instead — nothing changed server-side in that
+  // case, so don't applyState (it would wipe every list back to empty,
+  // since applyState defaults missing keys to []).
   const callAction = useCallback(
     async (ticketId, action, payload) => {
       const res = await fetch(`/api/tickets/${ticketId}`, {
@@ -114,7 +120,7 @@ export function AppProvider({ children }) {
         body: JSON.stringify({ action, payload, actingUserId: currentUserIdRef.current }),
       });
       const data = await res.json();
-      applyState(data);
+      if (!data.error) applyState(data);
       return data;
     },
     [applyState]
@@ -153,12 +159,48 @@ export function AppProvider({ children }) {
     return data.user;
   }, [applyState]);
 
+  const generateBags = useCallback(async (count) => {
+    const res = await fetch('/api/bags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count }),
+    });
+    const data = await res.json();
+    applyState(data);
+    return data.created;
+  }, [applyState]);
+
+  const assignBagToStore = useCallback(async (bagId, storeId) => {
+    const res = await fetch(`/api/bags/${bagId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId }),
+    });
+    const data = await res.json();
+    if (!data.error) applyState(data);
+    return data;
+  }, [applyState]);
+
+  const generateClothTags = useCallback(async (count) => {
+    const res = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count }),
+    });
+    const data = await res.json();
+    applyState(data);
+    return data.created;
+  }, [applyState]);
+
   const cancelTicket = useCallback((ticketId) => callAction(ticketId, 'cancelTicket'), [callAction]);
   const assignStoreToTicket = useCallback((ticketId, storeId) => callAction(ticketId, 'assignStoreToTicket', { storeId }), [callAction]);
   const assignRiderForPickup = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForPickup', { riderId }), [callAction]);
   const riderCollect = useCallback((ticketId) => callAction(ticketId, 'riderCollect'), [callAction]);
-  const scanBag = useCallback((ticketId) => callAction(ticketId, 'scanBag'), [callAction]);
-  const addCloth = useCallback((ticketId, label, category) => callAction(ticketId, 'addCloth', { label, category }), [callAction]);
+  const scanBag = useCallback((ticketId, bagId) => callAction(ticketId, 'scanBag', { bagId }), [callAction]);
+  const addCloth = useCallback(
+    (ticketId, label, category, tagId) => callAction(ticketId, 'addCloth', { label, category, tagId }),
+    [callAction]
+  );
   const finishPickup = useCallback((ticketId) => callAction(ticketId, 'finishPickup'), [callAction]);
   const markArrivedAtStore = useCallback((ticketId) => callAction(ticketId, 'markArrivedAtStore'), [callAction]);
   const startWashing = useCallback((ticketId) => callAction(ticketId, 'startWashing'), [callAction]);
@@ -185,6 +227,7 @@ export function AppProvider({ children }) {
     tickets,
     bags,
     clothes,
+    clothTags,
     addresses,
     currentUser,
     today: todayStr(),
@@ -195,6 +238,9 @@ export function AppProvider({ children }) {
     bookPickup,
     addAddress,
     addEmployee,
+    generateBags,
+    assignBagToStore,
+    generateClothTags,
     cancelTicket,
     assignStoreToTicket,
     assignRiderForPickup,

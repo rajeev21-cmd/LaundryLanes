@@ -8,6 +8,7 @@ import StatusBadge from '@/components/StatusBadge';
 import TicketTimeline from '@/components/TicketTimeline';
 import TicketHistory from '@/components/TicketHistory';
 import StarRating from '@/components/StarRating';
+import ScanInput from '@/components/ScanInput';
 
 export default function TicketDetail({ ticketId }) {
   const app = useApp();
@@ -40,6 +41,10 @@ export default function TicketDetail({ ticketId }) {
   const [clothCategory, setClothCategory] = useState(CLOTH_CATEGORIES[0]);
   const [riderRatingPick, setRiderRatingPick] = useState(0);
   const [serviceRatingPick, setServiceRatingPick] = useState(0);
+  const [tagIdInput, setTagIdInput] = useState('');
+  const [clothError, setClothError] = useState('');
+  const [bagIdInput, setBagIdInput] = useState('');
+  const [bagError, setBagError] = useState('');
 
   const ticket = tickets.find((t) => t.id === ticketId);
   if (!ticket) {
@@ -63,30 +68,55 @@ export default function TicketDetail({ ticketId }) {
     return acc;
   }, {});
 
-  function handleAddCloth(e) {
+  async function handleAddCloth(e) {
     e.preventDefault();
-    if (!clothLabel.trim()) return;
-    addCloth(ticket.id, clothLabel.trim(), clothCategory);
-    setClothLabel('');
+    if (!clothLabel.trim() || !tagIdInput.trim()) return;
+    const result = await addCloth(ticket.id, clothLabel.trim(), clothCategory, tagIdInput.trim());
+    if (result.error) {
+      setClothError(result.error);
+    } else {
+      setClothError('');
+      setClothLabel('');
+      setTagIdInput('');
+    }
+  }
+
+  async function handleScanBag() {
+    const result = await scanBag(ticket.id, bagIdInput.trim());
+    if (result.error) {
+      setBagError(result.error);
+    } else {
+      setBagError('');
+      setBagIdInput('');
+    }
   }
 
   const clothForm = (
-    <form onSubmit={handleAddCloth} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-      <input
-        type="text"
-        placeholder="e.g. Blue Shirt"
-        value={clothLabel}
-        onChange={(e) => setClothLabel(e.target.value)}
-        style={{ flex: '1 1 140px' }}
-      />
-      <select value={clothCategory} onChange={(e) => setClothCategory(e.target.value)} style={{ flex: '0 0 110px' }}>
-        {CLOTH_CATEGORIES.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
-      <button type="submit" className="btn btn-outline btn-sm">
+    <form onSubmit={handleAddCloth} style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        <input
+          type="text"
+          placeholder="e.g. Blue Shirt"
+          value={clothLabel}
+          onChange={(e) => setClothLabel(e.target.value)}
+          style={{ flex: '1 1 140px' }}
+        />
+        <select value={clothCategory} onChange={(e) => setClothCategory(e.target.value)} style={{ flex: '0 0 110px' }}>
+          {CLOTH_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+      <ScanInput value={tagIdInput} onChange={setTagIdInput} placeholder="Tag id, e.g. TAG-00001" />
+      {clothError && <p className="form-error">{clothError}</p>}
+      <button
+        type="submit"
+        className="btn btn-outline btn-block"
+        style={{ marginTop: 8 }}
+        disabled={!clothLabel.trim() || !tagIdInput.trim()}
+      >
         Scan
       </button>
     </form>
@@ -135,7 +165,7 @@ export default function TicketDetail({ ticketId }) {
           <h3>Items</h3>
           {!isCustomer && (
             <p className="form-hint" style={{ marginBottom: 10 }}>
-              📦 Bag {bag ? <strong>{bag.code}</strong> : '—'} {bag?.scanned ? '— scanned' : ''}
+              📦 Bag {bag ? <strong>{bag.id}</strong> : '—'}
             </p>
           )}
           <div className="ticket-card-tags" style={{ marginBottom: 10 }}>
@@ -318,8 +348,16 @@ export default function TicketDetail({ ticketId }) {
 
           {isMyTicketAsRider && ticket.status === 'driver_arriving_for_pickup' && (
             <div className="card-section">
-              <button className="btn btn-primary btn-block" onClick={() => scanBag(ticket.id)}>
-                📦 Scan Bag
+              <h3>Scan the bag</h3>
+              <ScanInput value={bagIdInput} onChange={setBagIdInput} placeholder="Bag id, e.g. BAG-0001" />
+              {bagError && <p className="form-error">{bagError}</p>}
+              <button
+                className="btn btn-primary btn-block"
+                style={{ marginTop: 10 }}
+                disabled={!bagIdInput.trim()}
+                onClick={handleScanBag}
+              >
+                📦 Confirm Bag
               </button>
             </div>
           )}

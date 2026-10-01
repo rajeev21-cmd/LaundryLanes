@@ -9,7 +9,13 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   }
   const db = loadDb();
-  const nextDb = fn(db, params.id, payload || {}, actingUserId);
-  saveDb(nextDb);
-  return NextResponse.json(nextDb);
+  const result = fn(db, params.id, payload || {}, actingUserId);
+  // Most actions always succeed and return the next db directly. A few
+  // (scanBag, addCloth) can fail validation against the bag/tag pool and
+  // return { error } instead — in that case nothing changed, so don't save.
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+  saveDb(result);
+  return NextResponse.json(result);
 }

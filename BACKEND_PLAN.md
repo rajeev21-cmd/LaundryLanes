@@ -101,17 +101,31 @@ tickets                  -- one row per collection request (called "bookings" in
 -- a cloth_category_prices price change after the fact (an audit/invoicing
 -- requirement nobody's asked for yet).
 
-bags                      -- one per ticket, created when the rider scans it during pickup
+bags                      -- owner-provisioned inventory, NOT created per-ticket (reversed from an
+                          -- earlier design — see CONTEXT.md) — id itself is the human-readable
+                          -- code (e.g. "BAG-0001"), no separate code/scanned columns needed
   id
-  code              -- e.g. "BAG-2001"
-  ticket_id         fk -> tickets.id
-  scanned           boolean
+  store_id          fk -> stores.id, nullable   -- null = not yet handed to any store
+  ticket_id         fk -> tickets.id, nullable  -- null = available (or unassigned, if store_id also null)
   created_at
 
-clothes                    -- one per garment, created as items are tagged & scanned
+-- A bag's ticket_id resets to NULL when that ticket reaches 'delivered' or
+-- 'cancelled' (bags are reusable) — in Postgres this is a trigger on
+-- tickets.status, or just done in the same transaction as the status
+-- update, same as the POC's releaseBag() in lib/ticketActions.js.
+
+cloth_tags                -- owner-provisioned pool of valid garment-tag ids — single-use, no
+                          -- release path at all once referenced by a clothes row
+  id                -- e.g. "TAG-00001"
+  created_at
+
+clothes                    -- one per garment, created as items are tagged & scanned.
+                          -- tag must reference an existing, not-yet-used cloth_tags.id
+                          -- (checked at insert time, not a DB-level uniqueness constraint
+                          -- alone — "not yet used" means no other clothes row has this tag)
   id
   ticket_id         fk -> tickets.id
-  tag               -- e.g. "TAG-4821"
+  tag               fk -> cloth_tags.id -- e.g. "TAG-00001"
   label             -- e.g. "Blue Shirt"
   category          -- enum: 'Shirt' | 'Trousers' | 'Kurta' | 'Saree' | 'Shoe' | 'Bedsheet' | 'Other' — drives the qty breakdown customers see
   created_at
@@ -141,9 +155,9 @@ This flow is already fully built and clickable in the POC (`components/TicketDet
 
 **Store:** once a ticket has landed in its queue (auto by pincode match, or by owner assignment — a store never assigns a ticket to itself) → accepts the request by assigning a rider (→ `pickup_request_accepted`); later, once the rider has it `picked_up`, manually advances it through `arrived_at_store` → `washing` → `ironing` → `packed` (optionally recounting/adding garments at `arrived_at_store`), then assigns a (possibly different) rider for delivery (→ `ready_for_delivery`).
 
-**Rider:** collects an accepted ticket (→ `driver_arriving_for_pickup`), scans the bag (→ `pickup_in_progress`, creates a `bags` row), tags & scans each garment (creates `clothes` rows), confirms pickup (→ `picked_up`); later starts (→ `out_for_delivery`) and completes (→ `delivered`) the delivery leg.
+**Rider:** collects an accepted ticket (→ `driver_arriving_for_pickup`), enters or scans (real camera QR, not simulated) the id of an existing bag from their store's assigned pool (→ `pickup_in_progress`), tags & scans each garment the same way using existing tag ids (creates `clothes` rows), confirms pickup (→ `picked_up`); later starts (→ `out_for_delivery`) and completes (→ `delivered`, which also returns the bag to its store's available pool) the delivery leg.
 
-**Owner:** sees every ticket across every store, each with its full timeline, bag/garment contents, and ₹ order value, read-only; creates employee accounts (rider/store/owner, one role each, via an in-app form) rather than editing a database directly; sees cross-store revenue and average rider/service ratings, plus per-customer spend stats alongside the user list; basic counts (tickets today, per store, by status) as a starting point for analytics.
+**Owner:** sees every ticket across every store, each with its full timeline, bag/garment contents, and ₹ order value, read-only; creates employee accounts (rider/store/owner, one role each, via an in-app form) rather than editing a database directly; generates bag/garment-tag inventory and assigns bags to stores, with CSV export and printable QR-code label sheets for the physical items; can look up any bag/tag by id to see its current status; sees cross-store revenue and average rider/service ratings, plus per-customer spend stats alongside the user list; basic counts (tickets today, per store, by status) as a starting point for analytics.
 
 ## 🏗️ 6. Build phases
 

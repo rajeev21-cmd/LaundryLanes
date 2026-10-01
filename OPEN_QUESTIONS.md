@@ -23,7 +23,7 @@ Answer inline (below each question, replacing `_Not yet answered._`) whenever yo
 | [13](#13-backend-rollout--payments) | Backend — payments | ❓ open |
 | [14](#14-backend-rollout--notifications) | Backend — notifications | ❓ open |
 | [15](#15-store-manager-sub-role) | Store manager sub-role | ❓ open |
-| [16](#16-real-scanning-hardware) | Real scanning hardware | ❓ open |
+| [16](#16-real-scanning-hardware) | Real scanning hardware | 🟡 built, needs device verification |
 | [17](#17-rider-reassignment-mid-ticket) | Rider reassignment mid-ticket | ❓ open |
 
 ---
@@ -127,10 +127,10 @@ The brief said "anyone with store role or store manager role picks up the ticket
 
 ### 16. Real scanning hardware
 
-The rider's "Scan Bag" and "tag & scan each item" actions are currently simulated — a button tap and a text label, not a real camera/barcode scan. This was the fastest way to make the full pickup flow demoable without procuring hardware or a scanning library.
-- Is simulated scanning fine for this POC stage, or do you want real QR/barcode camera scanning (e.g. via a library like `html5-qrcode`) built next, with actual printed tags?
+~~Is simulated scanning fine, or do you want real QR camera scanning built?~~ **Resolved** — real camera-based QR scanning is now built (`jsqr` + `getUserMedia`, see `components/QrScannerModal.jsx`) for bag/tag id entry specifically (rider pickup flow + the owner/store lookup pages). Printable QR labels are generated for owner-provisioned bags/tags (`components/QrPrintSheet.jsx` + `qrcode`), meant to be printed and stuck on the physical item. Not yet verified with a real device/camera — only the no-camera graceful-failure path could be tested in this build environment.
+- Still open: the rider's bag-scan **button press** itself (as opposed to the bag *id* entry) is still simulated in the sense that there's no physical barcode reader hardware involved — the camera reads a printed QR code's text, same as typing the id by hand would. If literal barcode-scanner hardware (not a phone camera) is wanted instead, that's a different, not-yet-built integration.
 
-**Answer:** _Not yet answered._
+**Answer:** Real QR camera scanning is built for bag/garment tag ids. Needs on-device verification with an actual camera.
 
 ### 17. Rider reassignment mid-ticket
 

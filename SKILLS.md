@@ -111,6 +111,19 @@ Every ticket has a `history: [{ at, status, byUserId, byName, byRole, note }]` a
 - **Revenue and both rating averages live on `app/owner/page.jsx`** (global) **and each rider's own avg rating on `app/store/riders/[id]`/`app/owner/riders/[id]`** (filtered to that rider) — both computed on the fly from `tickets`/`clothes`, no stored aggregate. Shows `—` rather than `0.0` when there's nothing to average yet — don't let `0/0` render as a real zero rating.
 - **Customer spend/availed/completed/cancelled stats appear in two places**: the customer's own home page (`app/customer/page.jsx`, their own numbers) and the owner's Users page (`app/owner/users/page.jsx`, as extra columns per customer row, blank for non-customers). Both compute the same four numbers the same way — "availed" is total ticket count regardless of outcome, "spent" only counts `delivered` tickets.
 
+## 📦🏷️ Bag/tag inventory, real QR scanning, CSV/print export
+
+- **Bags and tags are owner-provisioned inventory, not auto-generated per pickup.** `bags`: `{ id, storeId, ticketId }` (both nullable); `clothTags`: `{ id }` only. `lib/bagActions.js`/`lib/tagActions.js` (server-only) generate them; `lib/ticketActions.js`'s `scanBag`/`addCloth` *validate* an id against these pools instead of minting one — wrong store, already-in-use, unknown, or already-used ids all fail. **Don't go back to auto-generating a bag/tag code inside `scanBag`/`addCloth`** — that was the old model, deliberately replaced.
+- **Actions can now return `{ error: 'message' }` instead of a db object.** `app/api/tickets/[id]/route.js` checks for `.error` and responds `400` without calling `saveDb()`; `lib/AppProvider.jsx`'s `callAction`/`assignBagToStore` skip `applyState()` when `data.error` is set (since `applyState` defaults missing keys to `[]` and would otherwise wipe every list to empty). **Any new action that can fail validation must follow this same `{ error }` convention** — don't invent a different error shape.
+- **Bags are reusable, tags are not.** `releaseBag(db, ticketId)` in `lib/ticketActions.js` resets a bag's `ticketId` to `null` — call it from **every** terminal status (currently `markDelivered` and `cancelTicket`; a real bug during this feature's own build was forgetting `markDelivered`'s call, see `CONTEXT.md`). Tags have no release path at all — "used" is derived by checking `clothes.some(c => c.tag === tagId)`, forever.
+- **`components/ScanInput.jsx`** (text field + 📷 icon opening `components/QrScannerModal.jsx`) is the one reusable id-entry control — manual typing always works, the camera is an alternative. **QR scanning is real** (`jsqr` decode + `getUserMedia`), unlike every other "scan" button in this app (those are still simulated button clicks) — but it can't be verified end-to-end in an automated/sandboxed browser (no camera); only the graceful-failure path (deny/no-camera → inline error, never a crash) is machine-testable.
+- **`lib/downloadCsv.js`** (client-only, `Blob` + object URL) exports plain ids — no server route. **`components/QrPrintSheet.jsx`** (+ the `qrcode` npm package) is a *separate* artifact: one QR image per id, meant to be printed and physically stuck on the bag/tag. Don't conflate the two — the CSV never contains QR data.
+- **Lookup** (`app/owner/lookup`, `app/store/lookup`, shared `components/BagTagLookup.jsx`) answers "what's this bag/tag's current status" by searching `bags`/`clothTags`/`clothes`/`tickets` already in shared state — no new entity, no new API route.
+
+## ⚠️ Gotcha: hard-reload a long-open tab after editing AppProvider.jsx, don't debug it as a bug
+
+If `lib/AppProvider.jsx` gets a new `useState`/hook inserted anywhere other than the end of its existing hook list, a browser tab that's been open and Fast-Refreshing across that edit can end up with silently corrupted state — clicking things does nothing, network requests succeed, no console or server error anywhere. This is a React Fast Refresh hazard (hooks are matched by call *order*, not name) specific to dev mode; it cannot happen in production (one fresh bundle per deploy, no Fast Refresh). **The fix is a hard reload or dev-server restart, not a code change** — but always verify with a full fresh re-test after doing that, rather than assuming "stale tab" explains everything; a real bug can be hiding behind the same symptom (see `markDelivered`'s missing `releaseBag()` call in `CONTEXT.md`, caught by doing exactly this).
+
 ## 🗂️ File structure
 
 ```
@@ -125,11 +138,14 @@ laundry/
 │   │   ├── tickets/[id]/route.js  # PATCH — { action, payload, actingUserId } dispatcher
 │   │   ├── addresses/route.js     # POST — add an address-book entry
 │   │   ├── users/route.js         # POST — add an employee account
+│   │   ├── bags/route.js          # POST — generate N bags
+│   │   ├── bags/[id]/route.js     # PATCH — assign a bag to a store
+│   │   ├── tags/route.js          # POST — generate N tags
 │   │   └── reset/route.js         # POST — reseed
 │   ├── customer/                # layout.jsx (RoleGuard+AppShell) + page.jsx, book/, tickets/, tickets/[id]/
-│   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only)
+│   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), lookup/
 │   ├── rider/                   # layout.jsx + page.jsx (my schedule), tickets/[id]/
-│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, stores/[id]/ (read-only), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), users/
+│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, stores/[id]/ (read-only), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), users/, bags/, bags/print/, tags/, tags/print/, lookup/
 ├── components/
 │   ├── AppShell.jsx              # top bar + hamburger drawer; nav items from lib/nav.js per role
 │   ├── RoleGuard.jsx             # redirects to /login if current user's role != route's role
@@ -140,6 +156,10 @@ laundry/
 │   ├── StatusBadge.jsx           # small colored pill for a ticket's status; `simplified` prop for customers
 │   ├── AddressModal.jsx          # rider popup: a ticket's address/pincode + "Open in Maps" link
 │   ├── StarRating.jsx            # 1-5 star control — interactive picker (onChange) or read-only display (no onChange)
+│   ├── ScanInput.jsx             # text input + 📷 icon opening QrScannerModal — the one id-entry control
+│   ├── QrScannerModal.jsx        # real camera QR decode (jsqr + getUserMedia), with a graceful no-camera fallback
+│   ├── QrPrintSheet.jsx          # one QR image per id (qrcode npm package), for a printable bag/tag label sheet
+│   ├── BagTagLookup.jsx          # shared by /owner/lookup + /store/lookup — search a bag/tag id, see its status
 │   ├── MarketingHeader.jsx, MarketingFooter.jsx, StoreLocator.jsx   # public site only
 ├── lib/
 │   ├── AppProvider.jsx           # client context: local identity (sessionStorage) + fetched tickets/bags/clothes/addresses + polling
@@ -147,6 +167,9 @@ laundry/
 │   ├── ticketActions.js          # server-only: one reducer fn per lifecycle action + logAndPatch + pincode auto-assignment + rateTicket
 │   ├── addressActions.js         # server-only: addAddress() reducer for the address book
 │   ├── userActions.js            # server-only: addEmployee() reducer for employee accounts
+│   ├── bagActions.js             # server-only: generateBags()/assignBagToStore() for the bag pool
+│   ├── tagActions.js             # server-only: generateClothTags() for the tag pool
+│   ├── downloadCsv.js            # client-only: builds + triggers a CSV download, no server route
 │   ├── seedData.js               # isomorphic: buildSeedState() — the one seeding implementation (tickets/bags/clothes/addresses/nextTicketSeq)
 │   ├── nav.js                    # NAV_ITEMS map: role → hamburger menu entries
 │   ├── constants.js              # STATUS_*, CUSTOMER_STATUS_*/toCustomerStatus(), SLOT_LABELS, CLOTH_CATEGORIES/CLOTH_CATEGORY_PRICES/calcOrderValue(), ROLE_LABELS, ROLE_HOME, EMPLOYEE_ROLES
@@ -248,3 +271,5 @@ Open `http://localhost:3000`. First request creates `.data/db.json`, seeded fres
 7. **Don't hardcode fake data as if real** without flagging it — everything in `data/*.json` is a placeholder; if you add more, note it in `OPEN_QUESTIONS.md` so it doesn't ship silently.
 8. **One change per PR** if you're processing a `change-requests/` entry — see the `apply-change-requests` skill for the full workflow.
 9. **Don't add TypeScript or a CSS framework** to this POC without the project owner asking — it's deliberately minimal so it stays fast to iterate on.
+10. **Append new `useState`/hook calls to the *end* of `lib/AppProvider.jsx`'s existing hook list, never insert one in the middle.** Inserting mid-list can silently corrupt a long-open tab's state via React Fast Refresh (see the gotcha above) — appending at the end never does.
+11. **Before telling the user a feature works, re-verify with a full dev-server restart + fresh page load**, not just the tab you've been iterating in — a long-lived tab can mask real bugs behind Fast-Refresh staleness (or vice versa: look "broken" when the code is actually fine). A clean restart is also how the one real pre-push bug in this batch (`markDelivered` not releasing its bag) got caught instead of shipped.

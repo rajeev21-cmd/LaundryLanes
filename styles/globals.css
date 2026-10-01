@@ -432,6 +432,17 @@ table.data-table tr:last-child td { border-bottom: none; }
 .modal-card { background: var(--white); border-radius: var(--radius); padding: 22px; max-width: 360px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
 .modal-card h3 { margin-bottom: 10px; }
 .modal-address { font-size: 15px; color: var(--text); margin-bottom: 10px; line-height: 1.5; }
+.qr-scanner-frame { position: relative; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 1; }
+.qr-scanner-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ===== Printable QR sheets (bags/tags) ===== */
+.qr-print-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; }
+.qr-print-cell { text-align: center; padding: 10px; border: 1px solid rgba(11,37,69,0.12); border-radius: 8px; }
+.qr-print-cell img { display: block; margin: 0 auto 6px; }
+.qr-print-cell p { font-size: 12px; font-weight: 700; margin: 0; }
+@media print {
+  .no-print, .app-topbar, .app-drawer, .app-drawer-backdrop { display: none !important; }
+}
 
 /* ===== Login page ===== */
 .login-page {
