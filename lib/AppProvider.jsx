@@ -259,6 +259,7 @@ export function AppProvider({ children }) {
   );
   const finishPickup = useCallback((ticketId) => callAction(ticketId, 'finishPickup'), [callAction]);
   const markArrivedAtStore = useCallback((ticketId) => callAction(ticketId, 'markArrivedAtStore'), [callAction]);
+  const finishWalkInIntake = useCallback((ticketId) => callAction(ticketId, 'finishWalkInIntake'), [callAction]);
   const startWashing = useCallback((ticketId) => callAction(ticketId, 'startWashing'), [callAction]);
   const startIroning = useCallback((ticketId) => callAction(ticketId, 'startIroning'), [callAction]);
   const markPacked = useCallback((ticketId) => callAction(ticketId, 'markPacked'), [callAction]);
@@ -310,6 +311,7 @@ export function AppProvider({ children }) {
     addCloth,
     finishPickup,
     markArrivedAtStore,
+    finishWalkInIntake,
     startWashing,
     startIroning,
     markPacked,

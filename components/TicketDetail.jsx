@@ -29,6 +29,7 @@ export default function TicketDetail({ ticketId }) {
     addCloth,
     finishPickup,
     markArrivedAtStore,
+    finishWalkInIntake,
     startWashing,
     startIroning,
     markPacked,
@@ -280,18 +281,55 @@ export default function TicketDetail({ ticketId }) {
                 </div>
               )}
               {ticket.status === 'pickup_scheduled' && ticket.storeAcceptedAt && (
-                <div className="card-section">
-                  <h3>Assign a rider for pickup</h3>
-                  <select defaultValue="" onChange={(e) => e.target.value && assignRiderForPickup(ticket.id, e.target.value)}>
-                    <option value="" disabled>
-                      Choose a rider…
-                    </option>
-                    {storeRiders.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
+                <>
+                  <div className="card-section">
+                    <h3>📦 Customer is here — bag it now</h3>
+                    <p className="form-hint" style={{ marginBottom: 10 }}>
+                      Skip the pickup — scan a bag and start tagging items directly at the counter.
+                    </p>
+                    <ScanInput value={bagIdInput} onChange={setBagIdInput} placeholder="Bag id, e.g. BAG-0001" />
+                    {bagError && <p className="form-error">{bagError}</p>}
+                    <button
+                      className="btn btn-primary btn-block"
+                      style={{ marginTop: 10 }}
+                      disabled={!bagIdInput.trim()}
+                      onClick={handleScanBag}
+                    >
+                      📦 Confirm Bag
+                    </button>
+                  </div>
+                  <div className="card-section">
+                    <h3>🚚 Needs a pickup</h3>
+                    <p className="form-hint" style={{ marginBottom: 10 }}>
+                      Send a rider to collect this order from the customer.
+                    </p>
+                    <select defaultValue="" onChange={(e) => e.target.value && assignRiderForPickup(ticket.id, e.target.value)}>
+                      <option value="" disabled>
+                        Choose a rider…
                       </option>
-                    ))}
-                  </select>
+                      {storeRiders.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+              {ticket.status === 'pickup_in_progress' && !ticket.assignedRiderId && (
+                <div className="card-section">
+                  <h3>Tag &amp; scan each item</h3>
+                  <p className="form-hint" style={{ marginBottom: 10 }}>
+                    Bagged at the counter — no pickup needed for this one.
+                  </p>
+                  {clothForm}
+                  <button
+                    className="btn btn-primary btn-block"
+                    disabled={ticketClothes.length === 0}
+                    onClick={() => finishWalkInIntake(ticket.id)}
+                  >
+                    ✅ Finish Intake — Send to Washing Queue ({ticketClothes.length} item{ticketClothes.length === 1 ? '' : 's'})
+                  </button>
                 </div>
               )}
               {ticket.status === 'picked_up' && (

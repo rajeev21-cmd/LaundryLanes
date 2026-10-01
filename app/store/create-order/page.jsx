@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useApp } from '@/lib/AppProvider';
 import { SLOT_LABELS } from '@/lib/constants';
 
@@ -104,9 +105,13 @@ export default function StoreCreateOrderPage() {
       {createdTicket && (
         <div className="card-section">
           <p className="form-success" style={{ marginBottom: 14 }}>
-            ✅ Order #{createdTicket.id.replace('tk-', '')} created and pre-accepted — ready to assign a rider.
+            ✅ Order #{createdTicket.id.replace('tk-', '')} created — bag it now if the customer's waiting, or send a rider if it needs
+            a pickup.
           </p>
-          <button className="btn btn-primary btn-block" onClick={resetForNextOrder}>
+          <Link href={`/store/tickets/${createdTicket.id}`} className="btn btn-primary btn-block" style={{ marginBottom: 10 }}>
+            📦 Continue to Bag &amp; Tag →
+          </Link>
+          <button className="btn btn-outline btn-block" onClick={resetForNextOrder}>
             + Create another order
           </button>
         </div>
