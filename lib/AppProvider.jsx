@@ -159,6 +159,24 @@ export function AppProvider({ children }) {
     return data.user;
   }, [applyState]);
 
+  const updateEmployee = useCallback(async (userId, payload) => {
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.error) applyState(data);
+    return data;
+  }, [applyState]);
+
+  const deleteEmployee = useCallback(async (userId) => {
+    const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.error) applyState(data);
+    return data;
+  }, [applyState]);
+
   const generateBags = useCallback(async (count) => {
     const res = await fetch('/api/bags', {
       method: 'POST',
@@ -194,6 +212,7 @@ export function AppProvider({ children }) {
 
   const cancelTicket = useCallback((ticketId) => callAction(ticketId, 'cancelTicket'), [callAction]);
   const assignStoreToTicket = useCallback((ticketId, storeId) => callAction(ticketId, 'assignStoreToTicket', { storeId }), [callAction]);
+  const acceptOrder = useCallback((ticketId) => callAction(ticketId, 'acceptOrder'), [callAction]);
   const assignRiderForPickup = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForPickup', { riderId }), [callAction]);
   const riderCollect = useCallback((ticketId) => callAction(ticketId, 'riderCollect'), [callAction]);
   const scanBag = useCallback((ticketId, bagId) => callAction(ticketId, 'scanBag', { bagId }), [callAction]);
@@ -238,11 +257,14 @@ export function AppProvider({ children }) {
     bookPickup,
     addAddress,
     addEmployee,
+    updateEmployee,
+    deleteEmployee,
     generateBags,
     assignBagToStore,
     generateClothTags,
     cancelTicket,
     assignStoreToTicket,
+    acceptOrder,
     assignRiderForPickup,
     riderCollect,
     scanBag,

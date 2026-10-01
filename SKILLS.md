@@ -144,6 +144,14 @@ Every page that lists riders/stores/customers also shows that entity's average r
 
 `generateBags(count)`/`generateClothTags(count)` (both in `lib/AppProvider.jsx`) return the newly-created rows. `app/owner/bags/page.jsx`/`app/owner/tags/page.jsx` hold onto those ids after generating and link straight to `/owner/bags/print?ids=<comma-separated ids>` (same pattern for tags) — **don't make the owner go find their new batch in the full print sheet**, that's the whole point of this. The print pages (`app/owner/bags/print`, `app/owner/tags/print`) read `ids` via `useSearchParams()` and filter to just those; omit the param (the nav-linked "Print QR sheet" button does this) to get every bag/tag. **`useSearchParams()` needs a `<Suspense>` boundary around the component that calls it**, or `next build` fails — both pages already wrap it; follow the same shape if you add a third print view.
 
+## 👷 Editing/deleting an employee
+
+`lib/userActions.js`'s `updateEmployee()`/`deleteEmployee()` (`PATCH`/`DELETE /api/users/[id]`) follow the same `{error}`-on-failure convention as `scanBag`/`addCloth`/`assignBagToStore` — check `result.error` before `saveDb()`, and the client's `updateEmployee`/`deleteEmployee` in `lib/AppProvider.jsx` skip `applyState()` on error for the same reason those do (don't wipe shared state on a failed request). `app/owner/employees/page.jsx` auto-saves each field (role/store on `<select onChange>`, email on `<input onBlur>`) — no separate "Save" button, matching the bags page's inline store-assign pattern. **Name and password are not editable from this page** — only role/store/email, per what was actually asked for. Delete is unconditional (no "has active tickets" guard, consistent with this app's "trust the client" stance throughout) except for one thing: **a user can't delete their own account** (`isSelf` check in `EmployeeRow`) — a footgun guard, not a security boundary.
+
+## ✅ Store order acceptance — a sub-state of `pickup_scheduled`, not a new status
+
+`ticket.storeAcceptedAt` (nullable timestamp) records that the store has explicitly accepted a new order, set by `acceptOrder()` in `lib/ticketActions.js` — **it does not change `ticket.status`**. `components/TicketDetail.jsx`'s store block checks it only within the `pickup_scheduled` branch: no `storeAcceptedAt` → show "Accept Order" (nothing else); has one → show the "assign a rider" picker that used to be the *only* thing shown at this status. **If you need to gate a store action behind some other precondition, follow this pattern — a nullable timestamp field checked inside the existing status branch — rather than inventing a new `STATUS_ORDER` entry.** The 12-stage enum is deliberately not the place to represent every sub-state; see "The ticket lifecycle" above for what *does* warrant a real status. `app/store/page.jsx`'s stat tiles were split (`needsReviewCount` / `needsRiderCount`) to keep this visible — if you add another gated sub-state, consider whether that page's tiles need a similar split.
+
 ## 🗂️ File structure
 
 ```
@@ -158,6 +166,7 @@ laundry/
 │   │   ├── tickets/[id]/route.js  # PATCH — { action, payload, actingUserId } dispatcher
 │   │   ├── addresses/route.js     # POST — add an address-book entry
 │   │   ├── users/route.js         # POST — add an employee account
+│   │   ├── users/[id]/route.js    # PATCH — edit role/store/email; DELETE — remove the account
 │   │   ├── bags/route.js          # POST — generate N bags
 │   │   ├── bags/[id]/route.js     # PATCH — assign a bag to a store
 │   │   ├── tags/route.js          # POST — generate N tags

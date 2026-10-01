@@ -22,6 +22,7 @@ export default function TicketDetail({ ticketId }) {
     getClothesForTicket,
     cancelTicket,
     assignStoreToTicket,
+    acceptOrder,
     assignRiderForPickup,
     riderCollect,
     scanBag,
@@ -267,7 +268,18 @@ export default function TicketDetail({ ticketId }) {
 
           {isMyTicketAsStore && (
             <>
-              {ticket.status === 'pickup_scheduled' && (
+              {ticket.status === 'pickup_scheduled' && !ticket.storeAcceptedAt && (
+                <div className="card-section">
+                  <h3>New order</h3>
+                  <p className="form-hint" style={{ marginBottom: 10 }}>
+                    Review this pickup request and accept it before assigning a rider.
+                  </p>
+                  <button className="btn btn-primary btn-block" onClick={() => acceptOrder(ticket.id)}>
+                    ✅ Accept Order
+                  </button>
+                </div>
+              )}
+              {ticket.status === 'pickup_scheduled' && ticket.storeAcceptedAt && (
                 <div className="card-section">
                   <h3>Assign a rider for pickup</h3>
                   <select defaultValue="" onChange={(e) => e.target.value && assignRiderForPickup(ticket.id, e.target.value)}>

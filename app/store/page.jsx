@@ -20,7 +20,12 @@ export default function StorePickupRequestsPage() {
     sortKey
   );
 
-  const scheduledCount = tickets.filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'pickup_scheduled').length;
+  const needsReviewCount = tickets.filter(
+    (t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'pickup_scheduled' && !t.storeAcceptedAt
+  ).length;
+  const needsRiderCount = tickets.filter(
+    (t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'pickup_scheduled' && t.storeAcceptedAt
+  ).length;
   const acceptedCount = tickets.filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'pickup_request_accepted').length;
   const arrivingCount = tickets.filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'driver_arriving_for_pickup').length;
   const inProgressCount = tickets.filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'pickup_in_progress').length;
@@ -34,8 +39,12 @@ export default function StorePickupRequestsPage() {
 
       <div className="stat-grid">
         <div className="stat-tile">
-          <strong>{scheduledCount}</strong>
-          <span>Awaiting rider</span>
+          <strong>{needsReviewCount}</strong>
+          <span>Needs review</span>
+        </div>
+        <div className="stat-tile">
+          <strong>{needsRiderCount}</strong>
+          <span>Accepted, needs rider</span>
         </div>
         <div className="stat-tile">
           <strong>{acceptedCount}</strong>
