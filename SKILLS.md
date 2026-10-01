@@ -173,7 +173,17 @@ A store-created walk-in ticket starts at `pickup_scheduled` + `storeAcceptedAt`,
 - **Whether a `pickup_in_progress` ticket is a walk-in self-intake or a real rider pickup is derived, never stored**: gate on `!ticket.assignedRiderId`. A real pickup always has a rider assigned by the time it reaches `pickup_in_progress`; a walk-in intake never does. **Don't add an `isWalkIn`/`fulfillmentType` field** — the two existing signals (`assignedRiderId` presence, which card the store clicked) are already enough to disambiguate everything the UI needs.
 - **`TicketTimeline` will show skipped statuses (`pickup_request_accepted`, `driver_arriving_for_pickup`, `picked_up`) as "✓ done" on a finished walk-in ticket** — it's a pure `STATUS_ORDER.indexOf()` progress bar, not a literal log of what happened (`ticket.history`, store/owner-only, stays accurate). This is a known, accepted cosmetic quirk — don't build a separate timeline variant for it.
 
-## 🗂️ File structure
+## 🔀 `pickupMethod`/`deliveryMethod` — independent self-service choices, decided once, never re-derived
+
+Every ticket has `pickupMethod: 'self_dropoff' | 'pickup'` and `deliveryMethod: 'self_pickup' | 'delivery'` (`lib/constants.js`'s `PICKUP_METHODS`/`DELIVERY_METHODS`), set once at creation/booking time and never recomputed. They're independent — don't assume one implies the other.
+
+- **`createStoreOrder` always hardcodes `pickupMethod: 'self_dropoff'`** — there's no pickup-method *choice* in `app/store/create-order/page.jsx`, only a `deliveryMethod` one. **`bookPickup` offers both as real choices** — self-dropoff sends `storeId` (the customer picks a physical store directly, no pincode matching) instead of `pickupAddress`/`pincode`.
+- **Gate store UI on these fields directly (`=== 'self_dropoff'` / `=== 'self_pickup'`), not on derived signals like `!assignedRiderId`** — now that the fields exist, prefer them; they're the actual source of truth and read the same for tickets from either creation path. **Always check equality to the self-service value, never its negation** — `undefined` (every ticket from before this field existed) must fall through to the original rider-based branch, which is exactly what `=== 'self_dropoff'` does and `!== 'pickup'` would not.
+- **`markCollectedByCustomer`** (`lib/ticketActions.js`) is `finishWalkInIntake`'s mirror at the other end: `packed` → `delivered` directly, no `ready_for_delivery`/`out_for_delivery`, store-triggered. Don't reuse `markDelivered` for this — its "rider" framing (and the rider it releases/implies) doesn't fit.
+- **A new delivery address is a real `addresses` row** (`createStoreOrder`'s `newDeliveryAddress`), not just a string tacked onto the ticket — it needs to survive for next time, same as the customer's own address-book entries do. Give it the new customer's id even when the customer is *also* brand-new in the same call (sequencing matters: create the customer row first, then the address, then resolve the ticket's `deliveryAddress` string from it).
+- **If you add a UI path where a ticket can legitimately have no rider ever assigned** (which self-service tickets now can), check `components/TicketDetail.jsx`'s rating block and anywhere else that assumes `rider` exists — `rider && ...` guards are already in place for the rating UI; a new feature touching ratings/rider display needs the same guard, not an assumption that every delivered ticket has one.
+
+## 📦 Walk-in self-intake — store bags/tags on the spot, skipping the pickup-rider leg
 
 ```
 laundry/

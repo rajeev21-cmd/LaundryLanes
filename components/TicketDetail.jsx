@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/AppProvider';
-import { SLOT_LABELS, STATUS_DRIVER, CLOTH_CATEGORIES, calcOrderValue } from '@/lib/constants';
+import { SLOT_LABELS, STATUS_DRIVER, CLOTH_CATEGORIES, calcOrderValue, PICKUP_METHOD_LABELS, DELIVERY_METHOD_LABELS } from '@/lib/constants';
 import StatusBadge from '@/components/StatusBadge';
 import TicketTimeline from '@/components/TicketTimeline';
 import TicketHistory from '@/components/TicketHistory';
@@ -36,6 +36,7 @@ export default function TicketDetail({ ticketId }) {
     assignRiderForDelivery,
     startDelivery,
     markDelivered,
+    markCollectedByCustomer,
     rateTicket,
   } = app;
   const router = useRouter();
@@ -69,6 +70,15 @@ export default function TicketDetail({ ticketId }) {
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
+
+  // STATUS_DRIVER's generic text names a rider at two statuses a self-service
+  // ticket never involves one for — override just those, same lookup otherwise.
+  let driverHint = STATUS_DRIVER[ticket.status];
+  if (ticket.status === 'pickup_in_progress' && ticket.pickupMethod === 'self_dropoff') {
+    driverHint = 'Manual — store scans the bag (walk-in, bagged at the counter)';
+  } else if (ticket.status === 'delivered' && ticket.deliveryMethod === 'self_pickup') {
+    driverHint = 'Manual — store taps "Customer Collected" once they pick it up in person';
+  }
 
   async function handleAddCloth(e) {
     e.preventDefault();
@@ -142,7 +152,11 @@ export default function TicketDetail({ ticketId }) {
           </div>
           <StatusBadge status={ticket.status} simplified={isCustomer} />
         </div>
-        <div className="ticket-card-address">📍 {ticket.pickupAddress}</div>
+        {ticket.pickupAddress && <div className="ticket-card-address">📍 Pickup: {ticket.pickupAddress}</div>}
+        {ticket.deliveryAddress && <div className="ticket-card-address">🚚 Delivery: {ticket.deliveryAddress}</div>}
+        {!ticket.pickupAddress && !ticket.deliveryAddress && (
+          <div className="ticket-card-address">🏬 Self drop-off &amp; self pickup — no addresses needed</div>
+        )}
         <div className="ticket-card-tags">
           {customer && <span className="ticket-card-tag">👤 {customer.name}</span>}
           {store ? (
@@ -151,9 +165,11 @@ export default function TicketDetail({ ticketId }) {
             ticket.status !== 'cancelled' && <span className="ticket-card-tag unclaimed">🏬 Unclaimed</span>
           )}
           {rider && <span className="ticket-card-tag">🚚 {rider.name}</span>}
+          <span className="ticket-card-tag">{PICKUP_METHOD_LABELS[ticket.pickupMethod] || PICKUP_METHOD_LABELS.pickup}</span>
+          <span className="ticket-card-tag">{DELIVERY_METHOD_LABELS[ticket.deliveryMethod] || DELIVERY_METHOD_LABELS.delivery}</span>
         </div>
         {!isCustomer && ticket.status !== 'cancelled' && (
-          <p className="form-hint" style={{ marginTop: 10 }}>{STATUS_DRIVER[ticket.status]}</p>
+          <p className="form-hint" style={{ marginTop: 10 }}>{driverHint}</p>
         )}
       </div>
 
@@ -197,22 +213,30 @@ export default function TicketDetail({ ticketId }) {
           <h3>Rate this order</h3>
           {ticket.ratedAt ? (
             <>
-              <p className="form-hint" style={{ marginBottom: 6 }}>Rider — {rider?.name}</p>
-              <StarRating value={ticket.riderRating} />
-              <p className="form-hint" style={{ marginTop: 14, marginBottom: 6 }}>Overall service</p>
+              {rider && (
+                <>
+                  <p className="form-hint" style={{ marginBottom: 6 }}>Rider — {rider.name}</p>
+                  <StarRating value={ticket.riderRating} />
+                </>
+              )}
+              <p className="form-hint" style={{ marginTop: rider ? 14 : 0, marginBottom: 6 }}>Overall service</p>
               <StarRating value={ticket.serviceRating} />
             </>
           ) : (
             <>
-              <p className="form-hint" style={{ marginBottom: 6 }}>Rider — {rider?.name}</p>
-              <StarRating value={riderRatingPick} onChange={setRiderRatingPick} size={26} />
-              <p className="form-hint" style={{ marginTop: 14, marginBottom: 6 }}>Overall service</p>
+              {rider && (
+                <>
+                  <p className="form-hint" style={{ marginBottom: 6 }}>Rider — {rider.name}</p>
+                  <StarRating value={riderRatingPick} onChange={setRiderRatingPick} size={26} />
+                </>
+              )}
+              <p className="form-hint" style={{ marginTop: rider ? 14 : 0, marginBottom: 6 }}>Overall service</p>
               <StarRating value={serviceRatingPick} onChange={setServiceRatingPick} size={26} />
               <button
                 className="btn btn-primary btn-block"
                 style={{ marginTop: 16 }}
-                disabled={!riderRatingPick || !serviceRatingPick}
-                onClick={() => rateTicket(ticket.id, riderRatingPick, serviceRatingPick)}
+                disabled={(rider && !riderRatingPick) || !serviceRatingPick}
+                onClick={() => rateTicket(ticket.id, rider ? riderRatingPick : null, serviceRatingPick)}
               >
                 Submit Rating
               </button>
@@ -280,43 +304,40 @@ export default function TicketDetail({ ticketId }) {
                   </button>
                 </div>
               )}
-              {ticket.status === 'pickup_scheduled' && ticket.storeAcceptedAt && (
-                <>
-                  <div className="card-section">
-                    <h3>📦 Customer is here — bag it now</h3>
-                    <p className="form-hint" style={{ marginBottom: 10 }}>
-                      Skip the pickup — scan a bag and start tagging items directly at the counter.
-                    </p>
-                    <ScanInput value={bagIdInput} onChange={setBagIdInput} placeholder="Bag id, e.g. BAG-0001" />
-                    {bagError && <p className="form-error">{bagError}</p>}
-                    <button
-                      className="btn btn-primary btn-block"
-                      style={{ marginTop: 10 }}
-                      disabled={!bagIdInput.trim()}
-                      onClick={handleScanBag}
-                    >
-                      📦 Confirm Bag
-                    </button>
-                  </div>
-                  <div className="card-section">
-                    <h3>🚚 Needs a pickup</h3>
-                    <p className="form-hint" style={{ marginBottom: 10 }}>
-                      Send a rider to collect this order from the customer.
-                    </p>
-                    <select defaultValue="" onChange={(e) => e.target.value && assignRiderForPickup(ticket.id, e.target.value)}>
-                      <option value="" disabled>
-                        Choose a rider…
-                      </option>
-                      {storeRiders.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </>
+              {ticket.status === 'pickup_scheduled' && ticket.storeAcceptedAt && ticket.pickupMethod === 'self_dropoff' && (
+                <div className="card-section">
+                  <h3>📦 Bag it now</h3>
+                  <p className="form-hint" style={{ marginBottom: 10 }}>
+                    Customer&apos;s here with the clothes — scan a bag and start tagging items at the counter.
+                  </p>
+                  <ScanInput value={bagIdInput} onChange={setBagIdInput} placeholder="Bag id, e.g. BAG-0001" />
+                  {bagError && <p className="form-error">{bagError}</p>}
+                  <button
+                    className="btn btn-primary btn-block"
+                    style={{ marginTop: 10 }}
+                    disabled={!bagIdInput.trim()}
+                    onClick={handleScanBag}
+                  >
+                    📦 Confirm Bag
+                  </button>
+                </div>
               )}
-              {ticket.status === 'pickup_in_progress' && !ticket.assignedRiderId && (
+              {ticket.status === 'pickup_scheduled' && ticket.storeAcceptedAt && ticket.pickupMethod !== 'self_dropoff' && (
+                <div className="card-section">
+                  <h3>🚚 Assign a rider for pickup</h3>
+                  <select defaultValue="" onChange={(e) => e.target.value && assignRiderForPickup(ticket.id, e.target.value)}>
+                    <option value="" disabled>
+                      Choose a rider…
+                    </option>
+                    {storeRiders.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {ticket.status === 'pickup_in_progress' && ticket.pickupMethod === 'self_dropoff' && (
                 <div className="card-section">
                   <h3>Tag &amp; scan each item</h3>
                   <p className="form-hint" style={{ marginBottom: 10 }}>
@@ -362,7 +383,18 @@ export default function TicketDetail({ ticketId }) {
                   </button>
                 </div>
               )}
-              {ticket.status === 'packed' && (
+              {ticket.status === 'packed' && ticket.deliveryMethod === 'self_pickup' && (
+                <div className="card-section">
+                  <h3>🏬 Customer pickup</h3>
+                  <p className="form-hint" style={{ marginBottom: 10 }}>
+                    No rider needed — hand the bag over once the customer arrives to collect it.
+                  </p>
+                  <button className="btn btn-primary btn-block" onClick={() => markCollectedByCustomer(ticket.id)}>
+                    ✅ Customer Collected
+                  </button>
+                </div>
+              )}
+              {ticket.status === 'packed' && ticket.deliveryMethod !== 'self_pickup' && (
                 <div className="card-section">
                   <h3>Assign a rider for delivery</h3>
                   <select defaultValue="" onChange={(e) => e.target.value && assignRiderForDelivery(ticket.id, e.target.value)}>

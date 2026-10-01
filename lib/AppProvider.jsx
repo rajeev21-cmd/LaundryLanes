@@ -132,11 +132,11 @@ export function AppProvider({ children }) {
     [applyState]
   );
 
-  const bookPickup = useCallback(async ({ customerId, serviceId, pickupAddress, pincode, pickupDate, slot, notes }) => {
+  const bookPickup = useCallback(async (payload) => {
     const res = await fetch('/api/tickets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerId, serviceId, pickupAddress, pincode, pickupDate, slot, notes }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     applyState(data);
@@ -266,6 +266,7 @@ export function AppProvider({ children }) {
   const assignRiderForDelivery = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForDelivery', { riderId }), [callAction]);
   const startDelivery = useCallback((ticketId) => callAction(ticketId, 'startDelivery'), [callAction]);
   const markDelivered = useCallback((ticketId) => callAction(ticketId, 'markDelivered'), [callAction]);
+  const markCollectedByCustomer = useCallback((ticketId) => callAction(ticketId, 'markCollectedByCustomer'), [callAction]);
   const rateTicket = useCallback(
     (ticketId, riderRating, serviceRating) => callAction(ticketId, 'rateTicket', { riderRating, serviceRating }),
     [callAction]
@@ -318,6 +319,7 @@ export function AppProvider({ children }) {
     assignRiderForDelivery,
     startDelivery,
     markDelivered,
+    markCollectedByCustomer,
     rateTicket,
     getBagForTicket,
     getClothesForTicket,
