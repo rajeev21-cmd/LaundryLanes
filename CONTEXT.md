@@ -283,6 +283,10 @@ The walk-in self-intake above still assumed every store-created order needed *so
 - **A ticket with no rider ever assigned has no rider to rate** — `components/TicketDetail.jsx`'s rating block hides the rider-rating half entirely when `!rider`, submitting `riderRating: null`. This is the direct, foreseeable consequence of fully self-service tickets existing now; don't reintroduce a mandatory rider rating without re-checking this.
 - **Known cosmetic quirk, same shape as the walk-in-only one above, now on both legs**: `TicketTimeline` shows skipped rider-travel statuses as done on the timeline for self-service tickets; `ticket.history` stays the accurate record. `STATUS_DRIVER`'s two most misleading entries (`pickup_in_progress`'s "rider scans the bag", `delivered`'s "rider taps Mark Delivered") are overridden inline in `TicketDetail.jsx` for the self-service case — the rest of `STATUS_DRIVER` is left alone since self-service tickets never actually visit those other statuses.
 
+## ✏️ Employee edits moved from inline auto-save to an explicit modal
+
+The employee table used to auto-save each field the moment it changed (role/store on `<select onChange>`, email on blur) — no confirmation, no way to review a change before it took effect. Reworked so the row is read-only and an "✏️ Edit" button opens a modal with all three fields (role, store, email) and one explicit "Save Changes" button — a single `updateEmployee` call on submit, with a "Cancel" that discards everything. Same underlying action, same `{error}` convention; the only thing that changed is when it fires and how many fields it bundles per call.
+
 ## 🛠️ Tech choices (marketing site specifics, carried over from v1)
 
 - **Leaflet.js + OpenStreetMap tiles** for the store locator map (loaded via CDN `<script>`/`<link>` tags in `app/layout.jsx`, no API key required) — avoids needing a Google Maps API key/billing account. If Google Maps styling/Places autocomplete is wanted later, swap `components/StoreLocator.jsx`'s map init.
