@@ -94,6 +94,7 @@ Every ticket has a `history: [{ at, status, byUserId, byName, byRole, note }]` a
 - **Customers filter by their own simplified status**, not the internal one — `app/customer/tickets/page.jsx` filters via `toCustomerStatus(t.status) === filter` against `CUSTOMER_STATUS_ORDER`, same rule as "customers never see internal statuses" everywhere else.
 - **`lib/constants.js`'s `RIDER_ACTIVE_STATUSES`** is the single definition of "this rider currently has something to do": `pickup_request_accepted`, `driver_arriving_for_pickup`, `pickup_in_progress`, `ready_for_delivery`, `out_for_delivery`. `app/rider/page.jsx`'s own pending list and the two rider dashboards below both import it — **don't redefine this set locally**, a ticket between `picked_up` and `packed` still has `assignedRiderId` set but is deliberately excluded (it's with the store, not the rider, until re-assigned for delivery).
 - **`app/store/riders/page.jsx`** (own store's riders) **and `app/owner/riders/page.jsx`** (every rider, tagged with its store) answer "where is each rider, on what ticket, doing what" — one card per rider, computed live from `tickets.filter(t => t.assignedRiderId === rider.id && RIDER_ACTIVE_STATUSES.includes(t.status))`, no new state/entity. A rider can show >1 active ticket (nothing stops a store from assigning a second active ticket to a busy rider) — the card lists all of them, it doesn't assume exactly one. Both are in `lib/nav.js` as "🚚 Riders."
+- **Each rider/store card is a `<Link>` (`.card-section.clickable`) to a read-only detail page**: `app/store/riders/[id]`, `app/owner/riders/[id]`, `app/owner/stores/[id]`. These show the *full* ticket history (not just active tasks), with the same filter+sort toolbar as any other list page — but **deliberately render zero status-changing actions**. If you're tempted to add a button to one of these three pages, don't — that's what the ticket's own detail page (linked from each row) is for; these exist purely so a store/owner can look without being invited to act. Because each card is itself a `<Link>`, any per-ticket text inside it must stay plain text, not a nested `<Link>` — nesting an `<a>` inside an `<a>` is invalid HTML (see the rider cards' task list, which is a plain `<ul>`, no links).
 
 ## 🗂️ File structure
 
@@ -110,9 +111,9 @@ laundry/
 │   │   ├── addresses/route.js     # POST — add an address-book entry
 │   │   └── reset/route.js         # POST — reseed
 │   ├── customer/                # layout.jsx (RoleGuard+AppShell) + page.jsx, book/, tickets/, tickets/[id]/
-│   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/, riders/
+│   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only)
 │   ├── rider/                   # layout.jsx + page.jsx (my schedule), tickets/[id]/
-│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, tickets/, tickets/[id]/, riders/, users/
+│   └── owner/                   # layout.jsx + page.jsx (overview), stores/, stores/[id]/ (read-only), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), users/
 ├── components/
 │   ├── AppShell.jsx              # top bar + hamburger drawer; nav items from lib/nav.js per role
 │   ├── RoleGuard.jsx             # redirects to /login if current user's role != route's role

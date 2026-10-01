@@ -21,7 +21,7 @@ export default function OwnerRidersPage() {
     <>
       <div className="app-page-head">
         <h1>Riders</h1>
-        <p>Live status for every rider, across all stores</p>
+        <p>Live status for every rider, across all stores — tap a rider to see their full task history</p>
       </div>
 
       <div className="stat-grid">
@@ -44,7 +44,7 @@ export default function OwnerRidersPage() {
       ) : (
         <div className="order-list dense">
           {ridersWithTasks.map(({ rider, store, activeTickets }) => (
-            <div key={rider.id} className="card-section">
+            <Link key={rider.id} href={`/owner/riders/${rider.id}`} className="card-section clickable">
               <div className="ticket-card-top">
                 <div>
                   <h3 style={{ margin: 0 }}>{rider.name}</h3>
@@ -58,13 +58,13 @@ export default function OwnerRidersPage() {
                 <ul className="rider-task-list">
                   {activeTickets.map((t) => (
                     <li key={t.id}>
-                      <Link href={`/owner/tickets/${t.id}`}>#{t.id.replace('tk-', '')}</Link> — {STATUS_LABELS[t.status]}
-                      <span style={{ color: 'var(--text-muted)' }}> · 📍 {t.pickupAddress}</span>
+                      #{t.id.replace('tk-', '')} — {STATUS_LABELS[t.status]}
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
+              <p className="card-link-hint">View full task history →</p>
+            </Link>
           ))}
         </div>
       )}
