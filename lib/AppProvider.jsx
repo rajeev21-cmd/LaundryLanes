@@ -137,6 +137,19 @@ export function AppProvider({ children }) {
     return data.ticket;
   }, [applyState]);
 
+  // Store-initiated order (walk-in/phone customer) — separate from
+  // bookPickup, which is the customer's own self-serve flow.
+  const createStoreOrder = useCallback(async (payload) => {
+    const res = await fetch('/api/store-orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, actingUserId: currentUserIdRef.current }),
+    });
+    const data = await res.json();
+    if (!data.error) applyState(data);
+    return data;
+  }, [applyState]);
+
   const addAddress = useCallback(async ({ customerId, label, line1, line2, landmark, city, pincode }) => {
     const res = await fetch('/api/addresses', {
       method: 'POST',
@@ -255,6 +268,7 @@ export function AppProvider({ children }) {
     logout,
     resetDemoData,
     bookPickup,
+    createStoreOrder,
     addAddress,
     addEmployee,
     updateEmployee,

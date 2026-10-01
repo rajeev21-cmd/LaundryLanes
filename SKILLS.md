@@ -152,6 +152,12 @@ Every page that lists riders/stores/customers also shows that entity's average r
 
 `ticket.storeAcceptedAt` (nullable timestamp) records that the store has explicitly accepted a new order, set by `acceptOrder()` in `lib/ticketActions.js` — **it does not change `ticket.status`**. `components/TicketDetail.jsx`'s store block checks it only within the `pickup_scheduled` branch: no `storeAcceptedAt` → show "Accept Order" (nothing else); has one → show the "assign a rider" picker that used to be the *only* thing shown at this status. **If you need to gate a store action behind some other precondition, follow this pattern — a nullable timestamp field checked inside the existing status branch — rather than inventing a new `STATUS_ORDER` entry.** The 12-stage enum is deliberately not the place to represent every sub-state; see "The ticket lifecycle" above for what *does* warrant a real status. `app/store/page.jsx`'s stat tiles were split (`needsReviewCount` / `needsRiderCount`) to keep this visible — if you add another gated sub-state, consider whether that page's tiles need a similar split.
 
+## 🏬➕ Store-initiated orders (walk-in/phone) vs. the customer's own booking
+
+**Two separate creation paths exist on purpose — don't merge them.** `bookPickup` (`lib/ticketActions.js`, `POST /api/tickets`) is the customer's own flow: pincode auto-assigns a store, `storeAcceptedAt` stays unset. `createStoreOrder` (`lib/storeOrderActions.js`, `POST /api/store-orders`) is for a store creating an order on behalf of a walk-in/phone customer: `storeId` is the creating store directly (no pincode matching — the store already knows it's itself), and `storeAcceptedAt` is set immediately (pre-accepted, skips the "Accept Order" step new orders otherwise need). If you're tempted to add a `isStoreInitiated` flag to `bookPickup` instead of keeping these separate, don't — the two have different inputs (one always has a `customerId`; the other can create a brand-new customer inline) and different assignment logic, and conflating them would mean branching on a flag throughout one function instead of two clearly-named ones.
+- **`createStoreOrder` can create a new customer `users` row itself** (when `customerId` is omitted and `newCustomer: {name, phone, email, password}` is passed instead) — **don't route this through `addEmployee`**, which always sets a `storeId` unless `role === 'owner'`; a customer never has a `storeId`, so reusing it as-is would silently corrupt the new user's record.
+- **`app/store/create-order/page.jsx`** uses plain text address fields, not the customer's address-book flow (`app/customer/book/page.jsx`) — there's no pincode-based serviceability check to run here, the creating store already knows it can service itself.
+
 ## 🗂️ File structure
 
 ```
@@ -167,12 +173,13 @@ laundry/
 │   │   ├── addresses/route.js     # POST — add an address-book entry
 │   │   ├── users/route.js         # POST — add an employee account
 │   │   ├── users/[id]/route.js    # PATCH — edit role/store/email; DELETE — remove the account
+│   │   ├── store-orders/route.js  # POST — store creates an order for a walk-in/phone customer
 │   │   ├── bags/route.js          # POST — generate N bags
 │   │   ├── bags/[id]/route.js     # PATCH — assign a bag to a store
 │   │   ├── tags/route.js          # POST — generate N tags
 │   │   └── reset/route.js         # POST — reseed
 │   ├── customer/                # layout.jsx (RoleGuard+AppShell) + page.jsx, book/, tickets/, tickets/[id]/
-│   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), lookup/
+│   ├── store/                   # layout.jsx + page.jsx (pickup requests), create-order/, tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), lookup/
 │   ├── rider/                   # layout.jsx + page.jsx (my schedule), tickets/[id]/
 │   └── owner/                   # layout.jsx + page.jsx (overview), stores/, stores/[id]/ (read-only), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only), employees/, customers/, bags/, bags/print/, tags/, tags/print/, lookup/
 ├── components/
@@ -196,6 +203,7 @@ laundry/
 │   ├── ticketActions.js          # server-only: one reducer fn per lifecycle action + logAndPatch + pincode auto-assignment + rateTicket
 │   ├── addressActions.js         # server-only: addAddress() reducer for the address book
 │   ├── userActions.js            # server-only: addEmployee() reducer for employee accounts
+│   ├── storeOrderActions.js      # server-only: createStoreOrder() — store books on behalf of a walk-in/phone customer
 │   ├── bagActions.js             # server-only: generateBags()/assignBagToStore() for the bag pool
 │   ├── tagActions.js             # server-only: generateClothTags() for the tag pool
 │   ├── downloadCsv.js            # client-only: builds + triggers a CSV download, no server route
