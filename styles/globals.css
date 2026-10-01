@@ -331,6 +331,15 @@ button, input, select, textarea { font-family: inherit; font-size: 15px; }
 .status-delivered { background: #DDF5DD; color: #21793A; }
 .status-cancelled { background: #F6DCDC; color: #A32A2A; }
 
+/* Simplified 6-step status shown to customers (see toCustomerStatus()) */
+.cstatus-pickup_scheduled { background: #FDECD2; color: #9A5B12; }
+.cstatus-picked_up { background: #D2F3E9; color: #0F7A5C; }
+.cstatus-processing { background: #D7ECFB; color: #1768A6; }
+.cstatus-ready_for_delivery { background: #EDE1FB; color: #6B33A6; }
+.cstatus-out_for_delivery { background: #DCE8FD; color: #1D4E9B; }
+.cstatus-delivered { background: #DDF5DD; color: #21793A; }
+.cstatus-cancelled { background: #F6DCDC; color: #A32A2A; }
+
 /* ===== Ticket timeline ===== */
 .timeline { display: flex; flex-direction: column; }
 .timeline-step { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; }
@@ -393,6 +402,15 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; back
 table.data-table th { text-align: left; background: var(--navy); color: var(--white); padding: 10px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
 table.data-table td { padding: 10px 12px; border-bottom: 1px solid var(--navy-050); }
 table.data-table tr:last-child td { border-bottom: none; }
+
+/* ===== Modal (address popup, etc.) ===== */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(7,26,51,0.55); z-index: 70;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-card { background: var(--white); border-radius: var(--radius); padding: 22px; max-width: 360px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.modal-card h3 { margin-bottom: 10px; }
+.modal-address { font-size: 15px; color: var(--text); margin-bottom: 10px; line-height: 1.5; }
 
 /* ===== Login page ===== */
 .login-page {

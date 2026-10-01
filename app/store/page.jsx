@@ -1,40 +1,36 @@
 'use client';
 
+import { useState } from 'react';
 import { useApp } from '@/lib/AppProvider';
 import TicketCard from '@/components/TicketCard';
+import { STATUS_LABELS } from '@/lib/constants';
 
 const PICKUP_PHASE_STATUSES = ['pickup_scheduled', 'pickup_request_accepted', 'driver_arriving_for_pickup', 'pickup_in_progress'];
 
 export default function StorePickupRequestsPage() {
   const { tickets, currentUser, today } = useApp();
+  const [filter, setFilter] = useState('all');
 
-  // Any store can see + claim unclaimed tickets; once claimed, only the
-  // claiming store sees it here (it moves into their own pipeline).
   const todaysPickups = tickets
-    .filter((t) => t.pickupDate === today && PICKUP_PHASE_STATUSES.includes(t.status))
-    .filter((t) => !t.storeId || t.storeId === currentUser.storeId)
+    .filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && PICKUP_PHASE_STATUSES.includes(t.status))
+    .filter((t) => filter === 'all' || t.status === filter)
     .sort((a, b) => a.slot.localeCompare(b.slot));
 
-  const unclaimedCount = todaysPickups.filter((t) => !t.storeId).length;
-  const awaitingRiderCount = todaysPickups.filter((t) => t.storeId === currentUser.storeId && t.status === 'pickup_scheduled').length;
-  const acceptedCount = todaysPickups.filter((t) => t.status === 'pickup_request_accepted').length;
-  const arrivingCount = todaysPickups.filter((t) => t.status === 'driver_arriving_for_pickup').length;
-  const inProgressCount = todaysPickups.filter((t) => t.status === 'pickup_in_progress').length;
+  const scheduledCount = tickets.filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'pickup_scheduled').length;
+  const acceptedCount = tickets.filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'pickup_request_accepted').length;
+  const arrivingCount = tickets.filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'driver_arriving_for_pickup').length;
+  const inProgressCount = tickets.filter((t) => t.storeId === currentUser.storeId && t.pickupDate === today && t.status === 'pickup_in_progress').length;
 
   return (
     <>
       <div className="app-page-head">
         <h1>Pickup Requests</h1>
-        <p>{todaysPickups.length} in the pickup pipeline today · unclaimed tickets are open to any store</p>
+        <p>{todaysPickups.length} in the pickup pipeline today</p>
       </div>
 
       <div className="stat-grid">
         <div className="stat-tile">
-          <strong>{unclaimedCount}</strong>
-          <span>Unclaimed</span>
-        </div>
-        <div className="stat-tile">
-          <strong>{awaitingRiderCount}</strong>
+          <strong>{scheduledCount}</strong>
           <span>Awaiting rider</span>
         </div>
         <div className="stat-tile">
@@ -51,12 +47,23 @@ export default function StorePickupRequestsPage() {
         </div>
       </div>
 
+      <div className="filter-row">
+        <button className={`filter-chip ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
+          All
+        </button>
+        {PICKUP_PHASE_STATUSES.map((s) => (
+          <button key={s} className={`filter-chip ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
+            {STATUS_LABELS[s]}
+          </button>
+        ))}
+      </div>
+
       {todaysPickups.length === 0 ? (
         <div className="empty-state">No pickups in progress today.</div>
       ) : (
         <div className="order-list dense">
           {todaysPickups.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} href={`/store/tickets/${ticket.id}`} showStore dense />
+            <TicketCard key={ticket.id} ticket={ticket} href={`/store/tickets/${ticket.id}`} dense />
           ))}
         </div>
       )}

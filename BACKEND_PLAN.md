@@ -47,6 +47,7 @@ stores
   name
   address
   lat, lng
+  pincode           -- exact match against a ticket's pincode drives auto-assignment, see §4
   phone
 
 services
@@ -54,15 +55,26 @@ services
   name            -- Dry Cleaning, Wash & Fold, Wash & Iron, Ironing, Shoe Cleaning
   price           -- nullable until pricing is decided (see OPEN_QUESTIONS.md #5)
 
-tickets                  -- one row per collection request (called "bookings" in early drafts of this plan)
+addresses                -- a customer's saved address book, Blinkit/Amazon-style picker at booking time
   id
   customer_id       fk -> profiles.id
+  label             -- "Home" / "Work" / "Other"
+  line1, line2
+  landmark
+  city
+  pincode           -- checked against stores.pincode live in the UI before saving, for a serviceability hint
+  created_at
+
+tickets                  -- one row per collection request (called "bookings" in early drafts of this plan)
+  id                -- sequential/human-friendly in the POC (tk-2020, tk-2021, ...); a real system can just use a serial/identity column
+  customer_id       fk -> profiles.id
   service_id        fk -> services.id
-  pickup_address
-  pickup_lat, pickup_lng
+  address_id        fk -> addresses.id   -- which saved address this pickup is at
+  pickup_address    -- denormalized display string, copied from the address row at booking time
+  pincode           -- copied from the address at booking time; drives store auto-assignment, see §4
   pickup_date       date
-  pickup_slot       enum: 'morning' | 'afternoon' | 'evening'   -- start simple, see §4
-  store_id          fk -> stores.id, nullable   -- null = unclaimed, open to any store; see §4's claim policy
+  pickup_slot       enum: '08-10' | '10-12' | '12-14' | '14-16' | '16-18' | '18-20'   -- fixed 2-hour windows
+  store_id          fk -> stores.id, nullable   -- null = no store's pincode matched; owner assigns manually, see §4
   assigned_rider_id  fk -> profiles.id, nullable  -- reused for whichever phase (pickup/delivery) is active — see OPEN_QUESTIONS.md #17
   status            enum: 'pickup_scheduled' | 'pickup_request_accepted' | 'driver_arriving_for_pickup'
                         | 'pickup_in_progress' | 'picked_up' | 'arrived_at_store' | 'washing' | 'ironing'
@@ -77,36 +89,38 @@ bags                      -- one per ticket, created when the rider scans it dur
   scanned           boolean
   created_at
 
-clothes                    -- one per garment, created as the rider tags & scans each item
+clothes                    -- one per garment, created as items are tagged & scanned
   id
   ticket_id         fk -> tickets.id
   tag               -- e.g. "TAG-4821"
   label             -- e.g. "Blue Shirt"
+  category          -- enum: 'Shirt' | 'Trousers' | 'Kurta' | 'Saree' | 'Shoe' | 'Bedsheet' | 'Other' — drives the qty breakdown customers see
   created_at
 ```
 
 This is deliberately minimal — no payments table, no per-store service catalog/pricing variance, no delivery-address-different-from-pickup — because those weren't mentioned as requirements. Easy to add later without restructuring what's here.
 
-> This maps almost directly onto the POC's `data/*.json`: `users.json` → `profiles`, `stores.json` → `stores`, `services.json` → `services`, `tickets.json` → `tickets`, `bags.json` → `bags`, `clothes.json` → `clothes` (status enum values already match the full 12-stage lifecycle implemented in `lib/constants.js`). Migrating means standing up these tables in Supabase, then replacing `lib/AppProvider.jsx`'s localStorage read/write with real queries and its simulated `scanBag`/`addCloth` with whatever real scanning integration is decided in OPEN_QUESTIONS.md #16 — the pages and components shouldn't need to change.
+> This maps almost directly onto the POC's `data/*.json`: `users.json` → `profiles`, `stores.json` → `stores`, `services.json` → `services`, `tickets.json` → `tickets`, `bags.json` → `bags`, `clothes.json` → `clothes`, and the POC's server-side `addresses` array → `addresses` (status enum values already match the full 12-stage lifecycle implemented in `lib/constants.js`). Migrating means standing up these tables in Supabase, then replacing `lib/AppProvider.jsx`'s `fetch()`-based calls with real queries and its simulated `scanBag`/`addCloth` with whatever real scanning integration is decided in OPEN_QUESTIONS.md #16 — the pages and components shouldn't need to change.
 
 ## 🔐 4. Access control (Row Level Security policies)
 
 Instead of writing "if role == store, filter by store_id" in every API call, Postgres enforces it at the database level:
 
-- **Customers** can `SELECT`/`INSERT` only their own rows in `tickets` (`customer_id = auth.uid()`).
-- **Store** accounts can `SELECT` `tickets` where `store_id IS NULL` (the unclaimed pool, visible to every store) **or** `store_id = profiles.store_id`; `UPDATE` only where `store_id = profiles.store_id` **or** (`store_id IS NULL` and the update is specifically claiming it — i.e. setting `store_id` to their own). That claim case is the one place a store's write touches a row it doesn't yet "own," so it needs its own policy clause, not just the usual `store_id = profiles.store_id` check.
+- **Customers** can `SELECT`/`INSERT` only their own rows in `tickets` and in `addresses` (`customer_id = auth.uid()`) — a ticket's `store_id`/`pincode` match is computed server-side at insert time (a Postgres trigger or an edge function, not something the client sets directly), same as the POC's `bookPickup` doing the `stores.pincode` lookup itself rather than trusting a client-supplied `store_id`.
+- **Store** accounts can `SELECT`/`UPDATE` only `tickets` where `store_id = profiles.store_id` — unlike the earlier claiming-era draft of this plan, there is **no** policy letting a store see or touch rows where `store_id IS NULL`; a null-`store_id` ticket is invisible to every store until it's assigned.
+- **Only `owner`** can `UPDATE` a ticket's `store_id` when it's currently `NULL` (the manual-assignment path for pincode mismatches) — this is a narrow, explicit policy, not a general "owner can edit anything" grant layered on top of the store policy above.
 - **Riders** can `SELECT`/`UPDATE` only `tickets` where `assigned_rider_id = auth.uid()`, and only the `status` field plus inserting rows into `bags`/`clothes` for their own ticket (they shouldn't be able to reassign themselves or edit the address).
 - **Owner** bypasses filters entirely (a policy that just checks `role = 'owner'`).
 
-This means even if there's a bug in the frontend, the database itself won't leak one store's tickets to another.
+This means even if there's a bug in the frontend, the database itself won't leak one store's tickets to another, and won't let a store hand itself a ticket it wasn't assigned.
 
 ## 🔄 5. Flow by role
 
 This flow is already fully built and clickable in the POC (`components/TicketDetail.jsx` + `lib/AppProvider.jsx`) — what's described here is the same flow, just backed by real tables/auth instead of mock data. See `SKILLS.md` → "The ticket lifecycle" for the complete 12-stage version; summarized:
 
-**Customer:** sign up/log in → pick service → pick address (typed) → pick date + slot → confirm → ticket created at `pickup_scheduled` with no store assigned — it sits in an open pool any store can claim (no geo-routing; that was tried and explicitly rejected in favor of first-come claiming).
+**Customer:** sign up/log in → pick service → pick a saved address from their address book (or add a new one, with a live pincode-serviceability check) → pick date + slot → confirm → ticket created at `pickup_scheduled`, with `store_id` auto-set by matching the address's `pincode` against `stores.pincode`. If nothing matches, `store_id` stays `NULL` as an exception queue for the owner — this is the **third** assignment model this project has used (geo-nearest-store, then any-store-claims, now pincode-match + admin-fallback); don't reintroduce either of the earlier two without being asked, see `CONTEXT.md` for the full history.
 
-**Store:** claims an unclaimed ticket (sets `store_id`, no status change) → accepts the request by assigning a rider (→ `pickup_request_accepted`); later, once the rider has it `picked_up`, manually advances it through `arrived_at_store` → `washing` → `ironing` → `packed`, then assigns a (possibly different) rider for delivery (→ `ready_for_delivery`).
+**Store:** once a ticket has landed in its queue (auto by pincode match, or by owner assignment — a store never assigns a ticket to itself) → accepts the request by assigning a rider (→ `pickup_request_accepted`); later, once the rider has it `picked_up`, manually advances it through `arrived_at_store` → `washing` → `ironing` → `packed` (optionally recounting/adding garments at `arrived_at_store`), then assigns a (possibly different) rider for delivery (→ `ready_for_delivery`).
 
 **Rider:** collects an accepted ticket (→ `driver_arriving_for_pickup`), scans the bag (→ `pickup_in_progress`, creates a `bags` row), tags & scans each garment (creates `clothes` rows), confirms pickup (→ `picked_up`); later starts (→ `out_for_delivery`) and completes (→ `delivered`) the delivery leg.
 
@@ -118,8 +132,8 @@ Phases 2–6 below are **already built** in the current POC — they're listed h
 
 1. **Foundation**: Supabase project, `profiles`/`stores`/`services`/`tickets`/`bags`/`clothes` tables + RLS policies. Next.js app already exists — this phase is "stand up Supabase," not "build the app."
 2. **Auth**: signup/login pages per role (or one login page that redirects based on `profiles.role` after auth) — already built with mock auth in `lib/AppProvider.jsx`; swap for real Supabase Auth calls. Owner creates the first store + rider accounts manually (no public store/rider signup — see OPEN_QUESTIONS.md).
-3. **Customer booking flow**: service picker → address → date/slot picker → confirmation (unclaimed, no store assignment) — already built; add an email via Resend on confirmation.
-4. **Store dashboard**: unclaimed-pool + pickup requests list, claim action, assign-to-rider action, manual processing-stage buttons — already built.
+3. **Customer booking flow**: service picker → address book (saved addresses + add-new with pincode-serviceability check) → date/slot picker → confirmation, with automatic pincode-based store assignment — already built; add an email via Resend on confirmation.
+4. **Store dashboard**: pickup requests list (own store only, status-filterable), assign-to-rider action, manual processing-stage buttons, item recount — already built. **Owner dashboard needs the manual store-assignment control** for tickets pincode-matching couldn't place — already built there (see phase 6).
 5. **Rider dashboard**: schedule, collect/scan-bag/tag-items/finish-pickup flow, delivery actions — already built.
 6. **Owner dashboard**: cross-store view, filters, store/rider management (CRUD), basic counts.
 7. **Polish**: email notifications on status changes, loading/error states, mobile pass on all three dashboards.

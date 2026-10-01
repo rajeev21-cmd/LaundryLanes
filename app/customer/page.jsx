@@ -45,7 +45,7 @@ export default function CustomerHomePage() {
       ) : (
         <div className="order-list">
           {upcoming.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} href={`/customer/tickets/${ticket.id}`} showCustomer={false} />
+            <TicketCard key={ticket.id} ticket={ticket} href={`/customer/tickets/${ticket.id}`} showCustomer={false} simplified />
           ))}
         </div>
       )}

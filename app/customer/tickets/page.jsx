@@ -21,7 +21,7 @@ export default function CustomerTicketsPage() {
       ) : (
         <div className="order-list">
           {myTickets.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} showCustomer={false} showStore href={`/customer/tickets/${ticket.id}`} />
+            <TicketCard key={ticket.id} ticket={ticket} showCustomer={false} showStore href={`/customer/tickets/${ticket.id}`} simplified />
           ))}
         </div>
       )}

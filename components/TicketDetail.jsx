@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/AppProvider';
-import { SLOT_LABELS, STATUS_DRIVER } from '@/lib/constants';
+import { SLOT_LABELS, STATUS_DRIVER, CLOTH_CATEGORIES } from '@/lib/constants';
 import StatusBadge from '@/components/StatusBadge';
 import TicketTimeline from '@/components/TicketTimeline';
 import TicketHistory from '@/components/TicketHistory';
@@ -19,7 +19,7 @@ export default function TicketDetail({ ticketId }) {
     getBagForTicket,
     getClothesForTicket,
     cancelTicket,
-    claimTicket,
+    assignStoreToTicket,
     assignRiderForPickup,
     riderCollect,
     scanBag,
@@ -35,12 +35,14 @@ export default function TicketDetail({ ticketId }) {
   } = app;
   const router = useRouter();
   const [clothLabel, setClothLabel] = useState('');
+  const [clothCategory, setClothCategory] = useState(CLOTH_CATEGORIES[0]);
 
   const ticket = tickets.find((t) => t.id === ticketId);
   if (!ticket) {
     return <div className="empty-state">Ticket not found.</div>;
   }
 
+  const isCustomer = currentUser.role === 'customer';
   const service = services.find((s) => s.id === ticket.serviceId);
   const customer = users.find((u) => u.id === ticket.customerId);
   const store = stores.find((s) => s.id === ticket.storeId);
@@ -49,13 +51,42 @@ export default function TicketDetail({ ticketId }) {
   const ticketClothes = getClothesForTicket(ticket.id);
   const storeRiders = users.filter((u) => u.role === 'rider' && u.storeId === ticket.storeId);
   const isMyTicketAsRider = currentUser.role === 'rider' && ticket.assignedRiderId === currentUser.id;
+  const isMyTicketAsStore = currentUser.role === 'store' && ticket.storeId === currentUser.storeId;
+
+  const categoryCounts = ticketClothes.reduce((acc, c) => {
+    const key = c.category || 'Other';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
 
   function handleAddCloth(e) {
     e.preventDefault();
     if (!clothLabel.trim()) return;
-    addCloth(ticket.id, clothLabel.trim());
+    addCloth(ticket.id, clothLabel.trim(), clothCategory);
     setClothLabel('');
   }
+
+  const clothForm = (
+    <form onSubmit={handleAddCloth} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+      <input
+        type="text"
+        placeholder="e.g. Blue Shirt"
+        value={clothLabel}
+        onChange={(e) => setClothLabel(e.target.value)}
+        style={{ flex: '1 1 140px' }}
+      />
+      <select value={clothCategory} onChange={(e) => setClothCategory(e.target.value)} style={{ flex: '0 0 110px' }}>
+        {CLOTH_CATEGORIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+      <button type="submit" className="btn btn-outline btn-sm">
+        Scan
+      </button>
+    </form>
+  );
 
   return (
     <>
@@ -73,7 +104,7 @@ export default function TicketDetail({ ticketId }) {
               {ticket.pickupDate} · {SLOT_LABELS[ticket.slot] || ticket.slot}
             </div>
           </div>
-          <StatusBadge status={ticket.status} />
+          <StatusBadge status={ticket.status} simplified={isCustomer} />
         </div>
         <div className="ticket-card-address">📍 {ticket.pickupAddress}</div>
         <div className="ticket-card-tags">
@@ -85,27 +116,32 @@ export default function TicketDetail({ ticketId }) {
           )}
           {rider && <span className="ticket-card-tag">🚚 {rider.name}</span>}
         </div>
-        {ticket.status !== 'cancelled' && (
+        {!isCustomer && ticket.status !== 'cancelled' && (
           <p className="form-hint" style={{ marginTop: 10 }}>{STATUS_DRIVER[ticket.status]}</p>
         )}
       </div>
 
       <div className="card-section">
         <h3>Timeline</h3>
-        <TicketTimeline status={ticket.status} />
+        <TicketTimeline status={ticket.status} simplified={isCustomer} />
       </div>
 
-      {(bag || isMyTicketAsRider) && ticket.status !== 'cancelled' && (
+      {ticketClothes.length > 0 && ticket.status !== 'cancelled' && (
         <div className="card-section">
-          <h3>Bag &amp; items</h3>
-          {bag ? (
+          <h3>Items</h3>
+          {!isCustomer && (
             <p className="form-hint" style={{ marginBottom: 10 }}>
-              📦 Bag <strong>{bag.code}</strong> {bag.scanned ? '— scanned' : '— not yet scanned'}
+              📦 Bag {bag ? <strong>{bag.code}</strong> : '—'} {bag?.scanned ? '— scanned' : ''}
             </p>
-          ) : (
-            <p className="form-hint" style={{ marginBottom: 10 }}>No bag scanned yet.</p>
           )}
-          {ticketClothes.length > 0 && (
+          <div className="ticket-card-tags" style={{ marginBottom: ticketClothes.length && !isCustomer ? 10 : 0 }}>
+            {Object.entries(categoryCounts).map(([category, count]) => (
+              <span key={category} className="ticket-card-tag">
+                {category} ×{count}
+              </span>
+            ))}
+          </div>
+          {!isCustomer && (
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {ticketClothes.map((c) => (
                 <li key={c.id}>
@@ -126,7 +162,7 @@ export default function TicketDetail({ ticketId }) {
 
       {/* ---- Role-specific actions ---- */}
 
-      {currentUser.role === 'customer' && ticket.status === 'pickup_scheduled' && (
+      {isCustomer && ticket.status === 'pickup_scheduled' && (
         <div className="card-section">
           <button className="btn btn-outline btn-block" onClick={() => cancelTicket(ticket.id)}>
             Cancel this pickup
@@ -134,24 +170,36 @@ export default function TicketDetail({ ticketId }) {
         </div>
       )}
 
+      {currentUser.role === 'owner' && !ticket.storeId && ticket.status !== 'cancelled' && (
+        <div className="card-section">
+          <h3>Assign to a store</h3>
+          <p className="form-hint" style={{ marginBottom: 10 }}>
+            No store's pincode matched this pickup — assign one manually.
+          </p>
+          <select defaultValue="" onChange={(e) => e.target.value && assignStoreToTicket(ticket.id, e.target.value)}>
+            <option value="" disabled>
+              Choose a store…
+            </option>
+            {stores.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {currentUser.role === 'store' && (
         <>
           {!ticket.storeId && ticket.status !== 'cancelled' && (
-            <div className="card-section">
-              <p className="form-hint" style={{ marginBottom: 10 }}>
-                Unclaimed — any store can pick this up.
-              </p>
-              <button className="btn btn-primary btn-block" onClick={() => claimTicket(ticket.id)}>
-                🏬 Claim This Ticket
-              </button>
-            </div>
+            <div className="empty-state">Awaiting admin to assign this ticket to a store.</div>
           )}
 
-          {ticket.storeId && ticket.storeId !== currentUser.storeId && (
-            <div className="empty-state">This ticket has been claimed by another store.</div>
+          {ticket.storeId && !isMyTicketAsStore && (
+            <div className="empty-state">This ticket belongs to a different store.</div>
           )}
 
-          {ticket.storeId === currentUser.storeId && (
+          {isMyTicketAsStore && (
             <>
               {ticket.status === 'pickup_scheduled' && (
                 <div className="card-section">
@@ -177,6 +225,8 @@ export default function TicketDetail({ ticketId }) {
               )}
               {ticket.status === 'arrived_at_store' && (
                 <div className="card-section">
+                  <h3>Verify / add items</h3>
+                  {clothForm}
                   <button className="btn btn-primary btn-block" onClick={() => startWashing(ticket.id)}>
                     Start Washing
                   </button>
@@ -241,17 +291,7 @@ export default function TicketDetail({ ticketId }) {
           {isMyTicketAsRider && ticket.status === 'pickup_in_progress' && (
             <div className="card-section">
               <h3>Tag &amp; scan each item</h3>
-              <form onSubmit={handleAddCloth} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <input
-                  type="text"
-                  placeholder="e.g. Blue Shirt"
-                  value={clothLabel}
-                  onChange={(e) => setClothLabel(e.target.value)}
-                />
-                <button type="submit" className="btn btn-outline btn-sm">
-                  Scan
-                </button>
-              </form>
+              {clothForm}
               <button
                 className="btn btn-primary btn-block"
                 disabled={ticketClothes.length === 0}

@@ -25,6 +25,7 @@ export function AppProvider({ children }) {
   const [tickets, setTickets] = useState([]);
   const [bags, setBags] = useState([]);
   const [clothes, setClothes] = useState([]);
+  const [addresses, setAddresses] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const currentUserIdRef = useRef(null);
@@ -35,6 +36,7 @@ export function AppProvider({ children }) {
     setTickets(data.tickets || []);
     setBags(data.bags || []);
     setClothes(data.clothes || []);
+    setAddresses(data.addresses || []);
   }, []);
 
   const fetchState = useCallback(async () => {
@@ -117,23 +119,34 @@ export function AppProvider({ children }) {
     [applyState]
   );
 
-  const bookPickup = useCallback(async ({ customerId, serviceId, pickupAddress, pickupDate, slot, notes }) => {
+  const bookPickup = useCallback(async ({ customerId, serviceId, pickupAddress, pincode, pickupDate, slot, notes }) => {
     const res = await fetch('/api/tickets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerId, serviceId, pickupAddress, pickupDate, slot, notes }),
+      body: JSON.stringify({ customerId, serviceId, pickupAddress, pincode, pickupDate, slot, notes }),
     });
     const data = await res.json();
     applyState(data);
     return data.ticket;
   }, [applyState]);
 
+  const addAddress = useCallback(async ({ customerId, label, line1, line2, landmark, city, pincode }) => {
+    const res = await fetch('/api/addresses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId, label, line1, line2, landmark, city, pincode }),
+    });
+    const data = await res.json();
+    applyState(data);
+    return data.address;
+  }, [applyState]);
+
   const cancelTicket = useCallback((ticketId) => callAction(ticketId, 'cancelTicket'), [callAction]);
-  const claimTicket = useCallback((ticketId) => callAction(ticketId, 'claimTicket'), [callAction]);
+  const assignStoreToTicket = useCallback((ticketId, storeId) => callAction(ticketId, 'assignStoreToTicket', { storeId }), [callAction]);
   const assignRiderForPickup = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForPickup', { riderId }), [callAction]);
   const riderCollect = useCallback((ticketId) => callAction(ticketId, 'riderCollect'), [callAction]);
   const scanBag = useCallback((ticketId) => callAction(ticketId, 'scanBag'), [callAction]);
-  const addCloth = useCallback((ticketId, label) => callAction(ticketId, 'addCloth', { label }), [callAction]);
+  const addCloth = useCallback((ticketId, label, category) => callAction(ticketId, 'addCloth', { label, category }), [callAction]);
   const finishPickup = useCallback((ticketId) => callAction(ticketId, 'finishPickup'), [callAction]);
   const markArrivedAtStore = useCallback((ticketId) => callAction(ticketId, 'markArrivedAtStore'), [callAction]);
   const startWashing = useCallback((ticketId) => callAction(ticketId, 'startWashing'), [callAction]);
@@ -156,6 +169,7 @@ export function AppProvider({ children }) {
     tickets,
     bags,
     clothes,
+    addresses,
     currentUser,
     today: todayStr(),
     login,
@@ -163,8 +177,9 @@ export function AppProvider({ children }) {
     logout,
     resetDemoData,
     bookPickup,
+    addAddress,
     cancelTicket,
-    claimTicket,
+    assignStoreToTicket,
     assignRiderForPickup,
     riderCollect,
     scanBag,

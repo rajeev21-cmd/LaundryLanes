@@ -5,7 +5,7 @@ import { useApp } from '@/lib/AppProvider';
 import { SLOT_LABELS } from '@/lib/constants';
 import StatusBadge from '@/components/StatusBadge';
 
-export default function TicketCard({ ticket, href, showCustomer = true, showStore = false, dense = false }) {
+export default function TicketCard({ ticket, href, showCustomer = true, showStore = false, dense = false, simplified = false }) {
   const { services, users, stores } = useApp();
   const service = services.find((s) => s.id === ticket.serviceId);
   const customer = users.find((u) => u.id === ticket.customerId);
@@ -23,7 +23,7 @@ export default function TicketCard({ ticket, href, showCustomer = true, showStor
             {ticket.pickupDate} · {SLOT_LABELS[ticket.slot] || ticket.slot}
           </div>
         </div>
-        <StatusBadge status={ticket.status} />
+        <StatusBadge status={ticket.status} simplified={simplified} />
       </div>
 
       {!dense && <div className="ticket-card-address">📍 {ticket.pickupAddress}</div>}

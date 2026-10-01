@@ -19,7 +19,7 @@ Answer inline (below each question, replacing `_Not yet answered._`) whenever yo
 | [9](#9-subscription-plans) | Subscription plans | ❓ open |
 | [10](#10-domain--hosting) | Domain & hosting | ✅ resolved |
 | [11](#11-backend-rollout--account-provisioning) | Backend — account provisioning | ❓ open |
-| [12](#12-backend-rollout--booking-slots) | Backend — booking slots | ❓ open |
+| [12](#12-backend-rollout--booking-slots) | Backend — booking slots | 🟡 partially resolved |
 | [13](#13-backend-rollout--payments) | Backend — payments | ❓ open |
 | [14](#14-backend-rollout--notifications) | Backend — notifications | ❓ open |
 | [15](#15-store-manager-sub-role) | Store manager sub-role | ❓ open |
@@ -101,10 +101,10 @@ See [`BACKEND_PLAN.md`](BACKEND_PLAN.md). Plan assumes store and rider accounts 
 
 ### 12. Backend rollout — booking slots
 
-- Should pickup slots have a capacity limit per store (e.g. max 10 bookings per morning slot), or is unlimited fine for launch?
-- What are the actual slot windows (morning/afternoon/evening, or specific hour ranges)?
+- ~~What are the actual slot windows~~ **Resolved** — fixed 2-hour windows: `8–10am, 10am–12pm, 12–2pm, 2–4pm, 4–6pm, 6–8pm` (`SLOT_LABELS` in `lib/constants.js`).
+- Still open: should pickup slots have a capacity limit per store (e.g. max 10 bookings per slot), or is unlimited fine for launch?
 
-**Answer:** _Not yet answered._
+**Answer:** Slot windows are 2 hours each, fixed. Capacity limits still undecided.
 
 ### 13. Backend rollout — payments
 

@@ -99,6 +99,54 @@ Explicit product decision: `bookPickup` used to auto-assign the *geographically 
 - **Seed data**: converted 3 of the 5 seed stores' single `pickup_scheduled` ticket (HSR/Whitefield/Jayanagar's — `tk-2017/2018/2019`) to `storeId: null`, so the unclaimed pool has something in it from a fresh seed/reset, not just after someone books. Koramangala's and Indiranagar's stay pre-claimed-but-no-rider, so both intermediate states are demoable immediately.
 - **Owner Overview and Store's Pickup Requests both gained an "Unclaimed" count** (stat tile + a row in the "By store" breakdown) so the pool's size is visible, not just its contents.
 
+## 🔁 Claiming reversed again — pincode auto-assignment + admin override, plus address book, simplified customer status, garment categories, sequential ticket numbers
+
+A large batch landed together that **reverses the previous section's decision** ("any store can claim any ticket") back to automatic assignment — but by **pincode match**, not the geo-"nearest store" model from two decisions ago either. Three different assignment models were tried in sequence: nearest-store-by-geolocation (v6, rejected) → any-store-claims (previous section, rejected) → pincode-match + admin-manual-fallback, no claiming (this section, current). If you're reading the previous section first, don't implement claiming — it's gone.
+
+- **`bookPickup` now auto-assigns a store by exact pincode match** (`lib/ticketActions.js`): `STORES.find(s => s.pincode === pincode)`. Every seed store (`data/stores.json`) now has a `pincode` field. If no store's pincode matches the pickup address's pincode, the ticket is created with `storeId: null`, same as before, but now it's an **exception state for the owner to resolve**, not a shared pool for any store to pick from.
+- **`claimTicket` was deleted. New action: `assignStoreToTicket(db, ticketId, { storeId }, actingUserId)`** — same shape (just sets `storeId`, doesn't advance `status`), but gated to the **owner** role in the UI (`components/TicketDetail.jsx`), not store. A store can no longer put a ticket in its own queue by choice.
+- **`components/TicketDetail.jsx`'s store block is now two-way, not three-way**: `!ticket.storeId` → empty-state "Awaiting admin to assign this ticket to a store" (no action); `ticket.storeId && !mine` → "This ticket belongs to a different store" (unchanged). **New owner-only block**: `currentUser.role === 'owner' && !ticket.storeId` → a "Choose a store…" dropdown calling `assignStoreToTicket`.
+- **`app/store/page.jsx` reverted to `storeId === currentUser.storeId` only** — the union-with-unclaimed filter from the claiming era is gone, since there's nothing for a store to claim anymore. It also gained status filter chips (see below).
+- Seed data: `tk-2017/2018/2019` (the three "no login existed" demo tickets from the earlier bug-fix section) were kept at `storeId: null` but now **deliberately given pincodes that don't match any seed store** (560001/560055/560004 — generic MG Road/Malleshwaram/Basavanagudi addresses) specifically so a fresh seed/reset demos the "needs admin assignment" path immediately, same demo purpose as before but via a different mechanism.
+
+### 📇 Address book (new)
+
+Customers previously typed a free-text pickup address into the booking form every time. Now there's a saved address book, modeled after Blinkit/Amazon-style address pickers, which is also what makes pincode auto-assignment actually work (pincode has to come from somewhere structured, not a free-text paragraph).
+
+- **New entity**: `addresses` — `{ id, customerId, label, line1, line2, landmark, city, pincode }`. Lives in the same server-side JSON blob as tickets/bags/clothes (`lib/serverDb.js`), not a separate store. `lib/addressActions.js` (new, server-only) has `addAddress(db, payload)`; `app/api/addresses/route.js` (new) is the one `POST` route for it — deliberately not folded into the `PATCH /api/tickets/[id]` dispatcher, since an address isn't a ticket mutation.
+- **`app/customer/book/page.jsx` rewritten**: pickup address is now a `<select>` of the logged-in customer's saved addresses (`addresses.filter(a => a.customerId === currentUser.id)`), not a textarea. A "+ Add new address" control reveals an inline form — **pincode first**: as soon as 6 digits are typed, it live-checks `stores.some(s => s.pincode === pincode)` and shows a green "✅ We service this area (Store X)" or amber "⚠️ No store here yet — we'll still save this address and arrange pickup manually" hint, **before** the rest of the address fields. Saving calls `addAddress()` and auto-selects the new address; the booking submit itself is disabled until a saved address is actually selected. This mirrors the brief's explicit ask ("even if he chooses some location at the st[art], we just need to check serviceability... at the end he will be told to select an address from existing list or add a new one").
+- **One seed address per demo customer** (`ADDRESSES_SEED` in `lib/seedData.js`), matching that customer's existing seed-ticket address so the demo stays internally consistent.
+
+### 🙈 Simplified customer-facing status (6 steps, not 12)
+
+Customers found the full 12-stage internal lifecycle too granular to be useful ("why do I care if it's washing vs. ironing"). Rather than removing any internal granularity (store/rider/owner still need it), a **display-only collapse** was added:
+
+- **`lib/constants.js`**: `CUSTOMER_STATUS_ORDER` (`pickup_scheduled → picked_up → processing → ready_for_delivery → out_for_delivery → delivered`) + `CUSTOMER_STATUS_LABELS` + a `CUSTOMER_STATUS_MAP` lookup + `toCustomerStatus(internalStatus)`. `arrived_at_store`/`washing`/`ironing`/`packed` all collapse to one `processing` step; everything pre-`picked_up` collapses to `pickup_scheduled`.
+- **`StatusBadge`, `TicketTimeline`, and `TicketCard` all take a `simplified` prop** that swaps which order/labels/mapping they render — `TicketDetail.jsx` and the two customer-role pages (`app/customer/page.jsx`, `app/customer/tickets/page.jsx`) pass `simplified={true}`/`simplified` (literally every other call site passes nothing, i.e. `false`, and shows the real internal status). **This is purely a view-layer swap — `ticket.status` itself is never anything but the 12-stage internal value; nothing server-side knows about the 6-step version.**
+- **If you add a new internal status**, you must add it to `CUSTOMER_STATUS_MAP` too (which internal statuses collapse into which of the 6 customer steps), or `toCustomerStatus()` silently falls back to returning the raw internal name to customers — same "don't forget this" risk `STATUS_ORDER`/`STATUS_LABELS`/`STATUS_DRIVER` already carry.
+- The `STATUS_DRIVER` manual/automatic hint line and the raw bag-code/tag-list under "Items" are now explicitly hidden from customers in `TicketDetail.jsx` (`!isCustomer && ...`) — operational detail, not customer-facing.
+
+### 🧺 Garment quantity breakdown by category
+
+- **`lib/constants.js`**: `CLOTH_CATEGORIES = ['Shirt', 'Trousers', 'Kurta', 'Saree', 'Shoe', 'Bedsheet', 'Other']`. `addCloth` now takes `{ label, category }` instead of just `{ label }`; every `Cloth` has a `category` (defaults to `'Other'`).
+- **The tag-and-scan mini-form** (shared between the rider's `pickup_in_progress` step and a new store-side "Verify / add items" step at `arrived_at_store`, both via the same `clothForm` JSX in `TicketDetail.jsx`) now has a category `<select>` next to the label input.
+- **"Items" card shows a qty-by-category breakdown** (`Shirt ×3`, `Trousers ×1`, ...) to **every** role, including customers — this is the one piece of garment detail customers do see, distinct from the raw bag code/tag list which stays operational-only.
+- Store staff can now add/recount items too (not just the rider during pickup) — this is what the "(This can be done by rider or at store level)" part of the ask meant; same `addCloth` action, just exposed at a second lifecycle point.
+
+### 🔢 Sequential, human-friendly ticket numbers
+
+- **`db.nextTicketSeq`** (persisted in the server JSON blob, seeded at `2020` — one past the last seed ticket, `tk-2019`) replaces timestamp-based IDs for anything booked after seeding. `lib/ticketActions.js`'s `nextTicketId(db)` returns `{ id: 'tk-<seq>', nextTicketSeq: seq + 1 }`; `bookPickup` is the only caller. A freshly booked ticket is `#2020`, then `#2021`, etc. — "more connected and easily identifiable across users" than a raw millisecond timestamp.
+
+### 🕑 Pickup slots narrowed to 2 hours
+
+`SLOT_LABELS` in `lib/constants.js` changed from whatever the previous (3-slot, "morning/afternoon/evening"-ish) windows were to six fixed 2-hour windows: `08-10, 10-12, 12-14, 14-16, 16-18, 18-20`. Keys are zero-padded 24h range strings specifically so plain `localeCompare` string-sorts them into chronological order — don't go back to word-keys like `'morning'`, that property is why sorting "just works" in `app/store/page.jsx` and `app/rider/page.jsx`'s pending-list ordering. `data/tickets.json`'s seed slots were remapped onto this new key set.
+
+### 📍 Rider address popup + merged pending list + status filters (store, rider)
+
+- **`components/AddressModal.jsx`** (new) — a small modal showing a ticket's `pickupAddress` + `pincode` and a "🗺️ Open in Maps" link (`google.com/maps/search/?api=1&query=<address>`, opened in a new tab — no Maps API key, same no-API-key philosophy as the Leaflet store locator). Triggered by a dedicated "📍 Address" button on each pending ticket in `app/rider/page.jsx`, deliberately **not** the whole card (the card already links to the ticket detail page — nesting a second action inside that link would've needed a click-guard workaround instead of just... not nesting them).
+- **`app/rider/page.jsx` rewritten**: pickup jobs and delivery jobs used to be two separate lists; they're now **one** combined "pending" list (`PENDING_STATUSES` spans both pickup- and delivery-phase statuses), with status filter chips above it. Completed/cancelled tickets stay in a separate "History" section below, unfiltered.
+- **`app/store/page.jsx` gained the same status-filter-chip pattern** (scoped to `PICKUP_PHASE_STATUSES`, i.e. the pickup half of the lifecycle — this page is specifically "Pickup Requests," delivery-phase filtering isn't its job). `app/store/tickets/page.jsx` ("All Tickets") already had full-lifecycle status filtering from before this batch and didn't need changes.
+
 ## 🛠️ Tech choices (marketing site specifics, carried over from v1)
 
 - **Leaflet.js + OpenStreetMap tiles** for the store locator map (loaded via CDN `<script>`/`<link>` tags in `app/layout.jsx`, no API key required) — avoids needing a Google Maps API key/billing account. If Google Maps styling/Places autocomplete is wanted later, swap `components/StoreLocator.jsx`'s map init.
@@ -106,11 +154,12 @@ Explicit product decision: `bookPickup` used to auto-assign the *geographically 
 
 ## 📍 Store & data specifics
 
-- `data/stores.json` holds **placeholder** Bengaluru store locations (mirrors the earlier static-site placeholders) — see [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) #1.
+- `data/stores.json` holds **placeholder** Bengaluru store locations, each with a `pincode` used for auto-assigning new tickets (mirrors the earlier static-site placeholders) — see [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) #1.
 - `data/users.json` holds demo accounts (plaintext passwords) for all four roles — safe to keep public since every account and password is fake, but flagged in the README so nobody mistakes it for real auth.
-- `data/tickets.json` seeds ~19 tickets spanning today/yesterday and multiple stores/statuses across the full lifecycle, so every view has something realistic to show immediately without manually driving anything through prior stages first.
-- `data/bags.json` / `data/clothes.json` seed a bag + a few tagged garments for every ticket that's already at `picked_up` or later — tickets earlier in the pickup flow (`pickup_scheduled` through `driver_arriving_for_pickup`) intentionally have none yet, so the rider demo flow (scan bag → tag items → finish pickup) has a real "starting from nothing" ticket to exercise.
-- Nearest-store assignment on booking uses the same haversine logic as the old static site's locator (`lib/haversine.js`), now shared between `StoreLocator` and the customer booking form.
+- `data/tickets.json` seeds 19 tickets spanning today/yesterday and multiple stores/statuses across the full lifecycle, each with a `pincode` — so every view has something realistic to show immediately without manually driving anything through prior stages first. Three (`tk-2017/18/19`) deliberately carry a pincode no seed store services, to demo the "awaiting admin assignment" state.
+- `data/bags.json` / `data/clothes.json` seed a bag + a few tagged garments (each with a `category`, see `CLOTH_CATEGORIES`) for every ticket that's already at `picked_up` or later — tickets earlier in the pickup flow (`pickup_scheduled` through `driver_arriving_for_pickup`) intentionally have none yet, so the rider demo flow (scan bag → tag items → finish pickup) has a real "starting from nothing" ticket to exercise.
+- `data/clothes.json` and the booking form's address picker both read `lib/seedData.js`'s `ADDRESSES_SEED` / `CLOTH_CATEGORIES` respectively — see the "pincode auto-assignment" section above for how store/ticket pincodes and the address book fit together.
+- The public store locator (`components/StoreLocator.jsx`, unrelated to ticket assignment) still uses `lib/haversine.js`'s distance calc for its own "Use My Location" button. That's a separate feature from booking — the booking form's own "Use My Location" button and `nearestStore()`-for-booking were both removed in the previous claiming-era rewrite and were not reintroduced; pincode matching replaced geo-distance for booking entirely.
 
 ## ⚠️ Known gaps / not yet built
 
@@ -144,10 +193,12 @@ Then open `http://localhost:3000`.
 | `components/TicketDetail.jsx` | The shared, role-aware ticket page: timeline, bag/garment contents, and whichever action buttons the current user's role + the ticket's status allow |
 | `components/TicketTimeline.jsx` | Renders the 12-stage progress stepper (or a "Cancelled" state) |
 | `components/TicketHistory.jsx` | Renders a ticket's event log; only ever mounted for `store`/`owner` (see `TicketDetail.jsx`) |
-| `components/StatusBadge.jsx` | Small colored pill for a ticket's current status |
+| `components/StatusBadge.jsx` | Small colored pill for a ticket's current status; `simplified` prop swaps to the 6-step customer view |
 | `components/StoreLocator.jsx` | Leaflet map + store search, used on the public marketing page |
-| `lib/AppProvider.jsx` | Mock auth + tickets/bags/clothes context, backed by `localStorage`; seeds from `data/*.json`; every lifecycle action (`assignRiderForPickup`, `scanBag`, `addCloth`, `finishPickup`, `markPacked`, `startDelivery`, ...) goes through `logAndPatch()`, which is also what writes `ticket.history` |
-| `lib/nav.js`, `constants.js`, `haversine.js`, `format.js` | Per-role nav items, status/slot/role labels + `STATUS_DRIVER` (manual/automatic notes), distance calc, timestamp formatting |
-| `data/*.json` | Dummy users, stores, services, tickets, bags, clothes |
-| `styles/globals.css` | Brand tokens + marketing site styles + app-shell/dashboard/timeline styles, all in one file |
+| `components/AddressModal.jsx` | Rider-facing popup: a ticket's address/pincode + an "Open in Maps" link |
+| `lib/AppProvider.jsx` | Client context: identity (`sessionStorage`, per-tab) + `tickets`/`bags`/`clothes`/`addresses` fetched from the server and polled; every lifecycle action is an `async` wrapper around `PATCH /api/tickets/[id]` |
+| `lib/serverDb.js`, `ticketActions.js`, `addressActions.js`, `seedData.js` | Server-only: JSON-file read/write, one reducer fn per ticket action (+ `logAndPatch` for history), address-book reducer, and the canonical `buildSeedState()` |
+| `lib/nav.js`, `constants.js`, `haversine.js`, `format.js` | Per-role nav items; status/slot/role labels + `STATUS_DRIVER` + the customer-facing `CUSTOMER_STATUS_*`/`toCustomerStatus()` collapse + `CLOTH_CATEGORIES`; distance calc (public store locator only); timestamp formatting |
+| `data/*.json` | Dummy users, stores (with `pincode`), services, tickets (with `pincode`), bags, clothes (with `category`) |
+| `styles/globals.css` | Brand tokens + marketing site styles + app-shell/dashboard/timeline/modal styles, all in one file |
 | `public/images/logo.webp` | Brand logo (from user) |
