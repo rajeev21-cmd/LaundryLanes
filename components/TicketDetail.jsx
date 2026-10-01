@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/AppProvider';
-import { SLOT_LABELS, STATUS_DRIVER, CLOTH_CATEGORIES } from '@/lib/constants';
+import { SLOT_LABELS, STATUS_DRIVER, CLOTH_CATEGORIES, calcOrderValue } from '@/lib/constants';
 import StatusBadge from '@/components/StatusBadge';
 import TicketTimeline from '@/components/TicketTimeline';
 import TicketHistory from '@/components/TicketHistory';
+import StarRating from '@/components/StarRating';
 
 export default function TicketDetail({ ticketId }) {
   const app = useApp();
@@ -32,10 +33,13 @@ export default function TicketDetail({ ticketId }) {
     assignRiderForDelivery,
     startDelivery,
     markDelivered,
+    rateTicket,
   } = app;
   const router = useRouter();
   const [clothLabel, setClothLabel] = useState('');
   const [clothCategory, setClothCategory] = useState(CLOTH_CATEGORIES[0]);
+  const [riderRatingPick, setRiderRatingPick] = useState(0);
+  const [serviceRatingPick, setServiceRatingPick] = useState(0);
 
   const ticket = tickets.find((t) => t.id === ticketId);
   if (!ticket) {
@@ -134,13 +138,16 @@ export default function TicketDetail({ ticketId }) {
               📦 Bag {bag ? <strong>{bag.code}</strong> : '—'} {bag?.scanned ? '— scanned' : ''}
             </p>
           )}
-          <div className="ticket-card-tags" style={{ marginBottom: ticketClothes.length && !isCustomer ? 10 : 0 }}>
+          <div className="ticket-card-tags" style={{ marginBottom: 10 }}>
             {Object.entries(categoryCounts).map(([category, count]) => (
               <span key={category} className="ticket-card-tag">
                 {category} ×{count}
               </span>
             ))}
           </div>
+          <p className="form-hint" style={{ marginBottom: !isCustomer ? 10 : 0 }}>
+            Order value: <strong style={{ color: 'var(--navy)' }}>₹{calcOrderValue(ticketClothes)}</strong>
+          </p>
           {!isCustomer && (
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {ticketClothes.map((c) => (
@@ -149,6 +156,35 @@ export default function TicketDetail({ ticketId }) {
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      )}
+
+      {isCustomer && ticket.status === 'delivered' && (
+        <div className="card-section">
+          <h3>Rate this order</h3>
+          {ticket.ratedAt ? (
+            <>
+              <p className="form-hint" style={{ marginBottom: 6 }}>Rider — {rider?.name}</p>
+              <StarRating value={ticket.riderRating} />
+              <p className="form-hint" style={{ marginTop: 14, marginBottom: 6 }}>Overall service</p>
+              <StarRating value={ticket.serviceRating} />
+            </>
+          ) : (
+            <>
+              <p className="form-hint" style={{ marginBottom: 6 }}>Rider — {rider?.name}</p>
+              <StarRating value={riderRatingPick} onChange={setRiderRatingPick} size={26} />
+              <p className="form-hint" style={{ marginTop: 14, marginBottom: 6 }}>Overall service</p>
+              <StarRating value={serviceRatingPick} onChange={setServiceRatingPick} size={26} />
+              <button
+                className="btn btn-primary btn-block"
+                style={{ marginTop: 16 }}
+                disabled={!riderRatingPick || !serviceRatingPick}
+                onClick={() => rateTicket(ticket.id, riderRatingPick, serviceRatingPick)}
+              >
+                Submit Rating
+              </button>
+            </>
           )}
         </div>
       )}

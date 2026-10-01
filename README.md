@@ -28,10 +28,10 @@
 
 **Laundrylanes** — dry cleaning, wash & fold, wash & iron, ironing, and shoe cleaning, with doorstep pickup & drop. This repo is a **Next.js proof-of-concept** covering the public marketing site *and* four role-based workflows end to end, built around a **ticket** lifecycle (12 stages, from `pickup_scheduled` to `delivered`) with real **Bag** and **Cloth** tracking:
 
-- 🧺 **Customer** — book a pickup, track tickets by their full timeline, cancel a not-yet-accepted one
-- 🏬 **Store** — pickups land in its queue automatically (by pincode match) or via owner assignment, then it assigns a rider, walks a ticket manually through arrived → washing → ironing → packed (optionally recounting items), then assigns a rider for delivery; a live "Riders" dashboard shows which of its riders are on a task right now vs. idle
+- 🧺 **Customer** — book a pickup, track tickets by their full timeline, cancel a not-yet-accepted one, rate the rider and overall service once delivered, and see their own spend/availed/completed/cancelled stats
+- 🏬 **Store Manager** — pickups land in its queue automatically (by pincode match) or via owner assignment, then it assigns a rider, walks a ticket manually through arrived → washing → ironing → packed (optionally recounting items), then assigns a rider for delivery; a live "Riders" dashboard shows which of its riders are on a task right now vs. idle
 - 🚚 **Rider** — collect an accepted pickup, scan the bag, tag & scan each garment (which is what actually moves the ticket to "Picked Up"), and later start/complete the delivery leg
-- 👑 **Owner** — cross-store overview, stores, every ticket's full timeline (including its bag & garment contents), a cross-store rider-status dashboard, all users
+- 👑 **Owner** — cross-store overview (now with revenue + average ratings), stores, every ticket's full timeline (including its bag & garment contents and ₹ order value), a cross-store rider-status dashboard, all users with per-customer stats, and an "Add Employee" form (rider / store manager / owner, one role per account)
 
 Every ticket list (customer/store/rider/owner) has filter chips plus a sort dropdown (soonest/latest pickup, newest/oldest booked) — consistent across all four roles.
 

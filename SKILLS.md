@@ -96,6 +96,21 @@ Every ticket has a `history: [{ at, status, byUserId, byName, byRole, note }]` a
 - **`app/store/riders/page.jsx`** (own store's riders) **and `app/owner/riders/page.jsx`** (every rider, tagged with its store) answer "where is each rider, on what ticket, doing what" — one card per rider, computed live from `tickets.filter(t => t.assignedRiderId === rider.id && RIDER_ACTIVE_STATUSES.includes(t.status))`, no new state/entity. A rider can show >1 active ticket (nothing stops a store from assigning a second active ticket to a busy rider) — the card lists all of them, it doesn't assume exactly one. Both are in `lib/nav.js` as "🚚 Riders."
 - **Each rider/store card is a `<Link>` (`.card-section.clickable`) to a read-only detail page**: `app/store/riders/[id]`, `app/owner/riders/[id]`, `app/owner/stores/[id]`. These show the *full* ticket history (not just active tasks), with the same filter+sort toolbar as any other list page — but **deliberately render zero status-changing actions**. If you're tempted to add a button to one of these three pages, don't — that's what the ticket's own detail page (linked from each row) is for; these exist purely so a store/owner can look without being invited to act. Because each card is itself a `<Link>`, any per-ticket text inside it must stay plain text, not a nested `<Link>` — nesting an `<a>` inside an `<a>` is invalid HTML (see the rider cards' task list, which is a plain `<ul>`, no links).
 
+## 👥 Employee management
+
+`users` is a shared, server-backed array (same shape as `tickets`/`bags`/`clothes`/`addresses`) — **not** a static `data/users.json` import anymore, though that file is still the seed. `lib/userActions.js`'s `addEmployee(db, {name, email, password, role, storeId})` is the one mutator, called via `POST /api/users` (its own route, not the ticket dispatcher — creating a user isn't a ticket action). `app/owner/users/page.jsx` has the "Add Employee" form (role dropdown from `EMPLOYEE_ROLES` in `lib/constants.js` — `rider`/`store`/`owner`; `customer` is deliberately excluded, customers are self-signup per `BACKEND_PLAN.md`).
+
+- **"Store" role displays as "Store Manager"** (`ROLE_LABELS.store`) but the `role` *value* is still `'store'` everywhere — every `currentUser.role === 'store'` check, every `app/store/*` route, stays unchanged. Don't go looking for a `'storeManager'` value, it doesn't exist; this was a label-only change.
+- **`lib/ticketActions.js`'s `logAndPatch(db, ticketId, patch, note, actingUserId)` takes the whole `db` now, not `db.tickets`** — it needs `db.users` to resolve who's acting (`resolveActor`). If you add a new ticket-mutating action, call it as `logAndPatch(db, ...)`; the old `logAndPatch(db.tickets, ...)` signature is gone.
+- **`isHydrated` (in `lib/AppProvider.jsx`) gates on the same `fetchState()` that loads `users`** — this is why `RoleGuard` never flash-redirects before a logged-in user's account has loaded. If you ever add a second data source `users` depends on, make sure it's awaited by the same hydration gate, not a separate effect.
+
+## ⭐ Ratings, order value, and customer spend
+
+- **`rateTicket(ticketId, riderRating, serviceRating)`** (1-5 each) is customer-only in the UI, only once `status === 'delivered'`, and only once — `components/TicketDetail.jsx` shows `components/StarRating.jsx` as an interactive picker (`onChange` set) until `ticket.ratedAt` exists, then swaps to the same component read-only (`onChange` omitted). **Reuse `StarRating` for any other rating display** — don't write a second star-renderer.
+- **`lib/constants.js`'s `CLOTH_CATEGORY_PRICES`** (flat ₹ per `CLOTH_CATEGORIES` entry) + **`calcOrderValue(clothesForTicket)`** (sums them) is the only pricing model — per-category, not per-individual-garment. `TicketDetail.jsx`'s Items card shows the result to every role, customers included. If per-item custom pricing or owner-editable prices are ever wanted, this is the one function/constant to replace; nothing else needs to change since every caller already goes through `calcOrderValue()`.
+- **Revenue and both rating averages live on `app/owner/page.jsx`** (global) **and each rider's own avg rating on `app/store/riders/[id]`/`app/owner/riders/[id]`** (filtered to that rider) — both computed on the fly from `tickets`/`clothes`, no stored aggregate. Shows `—` rather than `0.0` when there's nothing to average yet — don't let `0/0` render as a real zero rating.
+- **Customer spend/availed/completed/cancelled stats appear in two places**: the customer's own home page (`app/customer/page.jsx`, their own numbers) and the owner's Users page (`app/owner/users/page.jsx`, as extra columns per customer row, blank for non-customers). Both compute the same four numbers the same way — "availed" is total ticket count regardless of outcome, "spent" only counts `delivered` tickets.
+
 ## 🗂️ File structure
 
 ```
@@ -109,6 +124,7 @@ laundry/
 │   │   ├── tickets/route.js       # POST — book a pickup (pincode auto-assigns storeId)
 │   │   ├── tickets/[id]/route.js  # PATCH — { action, payload, actingUserId } dispatcher
 │   │   ├── addresses/route.js     # POST — add an address-book entry
+│   │   ├── users/route.js         # POST — add an employee account
 │   │   └── reset/route.js         # POST — reseed
 │   ├── customer/                # layout.jsx (RoleGuard+AppShell) + page.jsx, book/, tickets/, tickets/[id]/
 │   ├── store/                   # layout.jsx + page.jsx (pickup requests), tickets/, tickets/[id]/, riders/, riders/[id]/ (read-only)
@@ -123,15 +139,17 @@ laundry/
 │   ├── TicketHistory.jsx         # event log — only mounted for store/owner
 │   ├── StatusBadge.jsx           # small colored pill for a ticket's status; `simplified` prop for customers
 │   ├── AddressModal.jsx          # rider popup: a ticket's address/pincode + "Open in Maps" link
+│   ├── StarRating.jsx            # 1-5 star control — interactive picker (onChange) or read-only display (no onChange)
 │   ├── MarketingHeader.jsx, MarketingFooter.jsx, StoreLocator.jsx   # public site only
 ├── lib/
 │   ├── AppProvider.jsx           # client context: local identity (sessionStorage) + fetched tickets/bags/clothes/addresses + polling
 │   ├── serverDb.js               # server-only: JSON-file read/write (.data/db.json locally, /tmp on Vercel)
-│   ├── ticketActions.js          # server-only: one reducer fn per lifecycle action + logAndPatch + pincode auto-assignment
+│   ├── ticketActions.js          # server-only: one reducer fn per lifecycle action + logAndPatch + pincode auto-assignment + rateTicket
 │   ├── addressActions.js         # server-only: addAddress() reducer for the address book
+│   ├── userActions.js            # server-only: addEmployee() reducer for employee accounts
 │   ├── seedData.js               # isomorphic: buildSeedState() — the one seeding implementation (tickets/bags/clothes/addresses/nextTicketSeq)
 │   ├── nav.js                    # NAV_ITEMS map: role → hamburger menu entries
-│   ├── constants.js              # STATUS_LABELS/STATUS_ORDER/STATUS_DRIVER, CUSTOMER_STATUS_*/toCustomerStatus(), SLOT_LABELS, CLOTH_CATEGORIES, ROLE_LABELS, ROLE_HOME
+│   ├── constants.js              # STATUS_*, CUSTOMER_STATUS_*/toCustomerStatus(), SLOT_LABELS, CLOTH_CATEGORIES/CLOTH_CATEGORY_PRICES/calcOrderValue(), ROLE_LABELS, ROLE_HOME, EMPLOYEE_ROLES
 │   ├── haversine.js              # distance calc, used only by the public StoreLocator's "Use My Location" now
 │   ├── sortTickets.js             # shared TICKET_SORT_OPTIONS + sortTickets(), used by every ticket list page
 │   └── format.js                 # formatDateTime() for history timestamps
@@ -174,8 +192,8 @@ All defined as CSS custom properties in `:root` at the top of `styles/globals.cs
 
 ## 🔐 How mock auth + roles work
 
-- `data/users.json`: each user has `role` (`customer`/`store`/`rider`/`owner`), `email`, `password` (plaintext — it's all fake data, fine for a public repo), and for `store`/`rider` roles, a `storeId`. **Every store in `data/stores.json` must have at least one `store` account and one `rider` account** — any store can end up with a pincode-matched ticket (see "Store assignment" above), so a store with no login is a dead end for anything routed to it (nothing to log in as, and even Owner can't assign a rider if that store has none). If you add a 6th store, add its accounts (and a unique `pincode`) in the same commit.
-- `lib/AppProvider.jsx`'s `login(email, password)` matches against that array; `loginAsRole(role)` (used by the login page's demo buttons) just grabs the first user with that role.
+- Each user has `role` (`customer`/`store`/`rider`/`owner` — `store` displays as "Store Manager", see "Employee management" below but is still the `role` value), `email`, `password` (plaintext — it's all fake data, fine for a public repo), and for `store`/`rider` roles, a `storeId`. **Every store in `data/stores.json` must have at least one `store` account and one `rider` account** — any store can end up with a pincode-matched ticket (see "Store assignment" above), so a store with no login is a dead end for anything routed to it (nothing to log in as, and even Owner can't assign a rider if that store has none). If you add a 6th store, add its accounts (and a unique `pincode`) in the same commit.
+- **`users` is server-backed state, not the static `data/users.json` import** (see "Employee management" below) — `data/users.json` is still the *seed*, but at runtime `lib/AppProvider.jsx`'s `login(email, password)`/`loginAsRole(role)` match against the fetched `users` array, so employees added via "Add Employee" can log in too. Don't reintroduce `import USERS from '@/data/users.json'` anywhere client-side — that was deliberately removed.
 - The logged-in user's id is persisted to `sessionStorage` (not `localStorage`) under `laundrylanes-auth-v1`, **per tab**, not just per device — this is intentionally local-and-tab-scoped even though ticket data isn't, so opening customer/store/rider in three tabs of the *same* browser gives each an independent identity and logging out in one doesn't touch the others. (`localStorage` would be shared by every tab of the same origin — that surprised a real user once; see `CONTEXT.md`. Don't switch this back.)
 - Every role's route group (`app/customer/`, etc.) has a `layout.jsx` that wraps children in `<RoleGuard role="...">` then `<AppShell>`. `RoleGuard` redirects to `/login` if there's no user or the wrong role — **this is the only access control that exists**; the API routes trust whatever `actingUserId` the client sends with zero verification. Don't treat any of this as real security.
 

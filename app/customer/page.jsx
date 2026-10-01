@@ -3,15 +3,19 @@
 import Link from 'next/link';
 import { useApp } from '@/lib/AppProvider';
 import TicketCard from '@/components/TicketCard';
+import { calcOrderValue } from '@/lib/constants';
 
 export default function CustomerHomePage() {
-  const { tickets, currentUser, today } = useApp();
+  const { tickets, clothes, currentUser, today } = useApp();
   const myTickets = tickets.filter((t) => t.customerId === currentUser.id);
   const upcoming = myTickets
     .filter((t) => t.pickupDate >= today && !['delivered', 'cancelled'].includes(t.status))
     .sort((a, b) => a.pickupDate.localeCompare(b.pickupDate));
   const activeCount = myTickets.filter((t) => !['delivered', 'cancelled'].includes(t.status)).length;
-  const deliveredCount = myTickets.filter((t) => t.status === 'delivered').length;
+  const deliveredTickets = myTickets.filter((t) => t.status === 'delivered');
+  const deliveredCount = deliveredTickets.length;
+  const cancelledCount = myTickets.filter((t) => t.status === 'cancelled').length;
+  const totalSpent = deliveredTickets.reduce((sum, t) => sum + calcOrderValue(clothes.filter((c) => c.ticketId === t.id)), 0);
 
   return (
     <>
@@ -22,12 +26,24 @@ export default function CustomerHomePage() {
 
       <div className="stat-grid">
         <div className="stat-tile">
+          <strong>{myTickets.length}</strong>
+          <span>Services availed</span>
+        </div>
+        <div className="stat-tile">
           <strong>{activeCount}</strong>
-          <span>Active tickets</span>
+          <span>Active</span>
         </div>
         <div className="stat-tile">
           <strong>{deliveredCount}</strong>
-          <span>Completed tickets</span>
+          <span>Completed</span>
+        </div>
+        <div className="stat-tile">
+          <strong>{cancelledCount}</strong>
+          <span>Cancelled</span>
+        </div>
+        <div className="stat-tile">
+          <strong>₹{totalSpent}</strong>
+          <span>Total spent</span>
         </div>
       </div>
 

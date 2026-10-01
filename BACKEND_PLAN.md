@@ -36,11 +36,16 @@ Why Supabase over Firebase here: Postgres + SQL is a better fit for relational d
 ```
 profiles                 -- one row per authenticated user, extends Supabase auth.users
   id (uuid, = auth.users.id)
-  role            enum: 'customer' | 'store' | 'rider' | 'owner'
+  role            enum: 'customer' | 'store' | 'rider' | 'owner'   -- 'store' displays as "Store Manager" in the UI; same value
   full_name
   phone
   store_id        (nullable fk -> stores.id; set for 'store' and 'rider' roles)
   created_at
+
+-- Employee accounts ('rider'/'store'/'owner' — customers are the only
+-- self-signup role) are created by the owner through an in-app form, not a
+-- raw DB insert — already built as a POC flow (mock auth, no real
+-- Supabase invite yet); see "5. Flow by role" below.
 
 stores
   id
@@ -53,7 +58,12 @@ stores
 services
   id
   name            -- Dry Cleaning, Wash & Fold, Wash & Iron, Ironing, Shoe Cleaning
-  price           -- nullable until pricing is decided (see OPEN_QUESTIONS.md #5)
+  price           -- still nullable/unused — per-service pricing was never decided (see OPEN_QUESTIONS.md #5);
+                  -- what IS priced is per-garment-category (see clothes.category_price below), a separate axis
+
+cloth_category_prices    -- flat ₹ price per garment category — Shirt/Trousers/Kurta/Saree/Shoe/Bedsheet/Other
+  category        -- primary key; matches clothes.category
+  price           -- a ticket's order value = sum of its clothes' category prices, see tickets.order_value below
 
 addresses                -- a customer's saved address book, Blinkit/Amazon-style picker at booking time
   id
@@ -79,8 +89,17 @@ tickets                  -- one row per collection request (called "bookings" in
   status            enum: 'pickup_scheduled' | 'pickup_request_accepted' | 'driver_arriving_for_pickup'
                         | 'pickup_in_progress' | 'picked_up' | 'arrived_at_store' | 'washing' | 'ironing'
                         | 'packed' | 'ready_for_delivery' | 'out_for_delivery' | 'delivered' | 'cancelled'
+  rider_rating      1-5, nullable — set once, by the customer, only once status = 'delivered'
+  service_rating    1-5, nullable — same rules as rider_rating, collected together in one form
+  rated_at          timestamp, nullable
   notes
   created_at, updated_at
+
+-- order_value isn't a stored column — it's SUM(cloth_category_prices.price)
+-- over this ticket's clothes rows, computed on read (same as the POC's
+-- calcOrderValue()). Store it as a column instead if this needs to survive
+-- a cloth_category_prices price change after the fact (an audit/invoicing
+-- requirement nobody's asked for yet).
 
 bags                      -- one per ticket, created when the rider scans it during pickup
   id
@@ -118,13 +137,13 @@ This means even if there's a bug in the frontend, the database itself won't leak
 
 This flow is already fully built and clickable in the POC (`components/TicketDetail.jsx` + `lib/AppProvider.jsx`) — what's described here is the same flow, just backed by real tables/auth instead of mock data. See `SKILLS.md` → "The ticket lifecycle" for the complete 12-stage version; summarized:
 
-**Customer:** sign up/log in → pick service → pick a saved address from their address book (or add a new one, with a live pincode-serviceability check) → pick date + slot → confirm → ticket created at `pickup_scheduled`, with `store_id` auto-set by matching the address's `pincode` against `stores.pincode`. If nothing matches, `store_id` stays `NULL` as an exception queue for the owner — this is the **third** assignment model this project has used (geo-nearest-store, then any-store-claims, now pincode-match + admin-fallback); don't reintroduce either of the earlier two without being asked, see `CONTEXT.md` for the full history.
+**Customer:** sign up/log in → pick service → pick a saved address from their address book (or add a new one, with a live pincode-serviceability check) → pick date + slot → confirm → ticket created at `pickup_scheduled`, with `store_id` auto-set by matching the address's `pincode` against `stores.pincode`. If nothing matches, `store_id` stays `NULL` as an exception queue for the owner — this is the **third** assignment model this project has used (geo-nearest-store, then any-store-claims, now pincode-match + admin-fallback); don't reintroduce either of the earlier two without being asked, see `CONTEXT.md` for the full history. Once a ticket reaches `delivered`, the customer can rate the rider and the overall service (1-5 each, one-time); their own dashboard tracks total spent, times availed, completed, and cancelled.
 
 **Store:** once a ticket has landed in its queue (auto by pincode match, or by owner assignment — a store never assigns a ticket to itself) → accepts the request by assigning a rider (→ `pickup_request_accepted`); later, once the rider has it `picked_up`, manually advances it through `arrived_at_store` → `washing` → `ironing` → `packed` (optionally recounting/adding garments at `arrived_at_store`), then assigns a (possibly different) rider for delivery (→ `ready_for_delivery`).
 
 **Rider:** collects an accepted ticket (→ `driver_arriving_for_pickup`), scans the bag (→ `pickup_in_progress`, creates a `bags` row), tags & scans each garment (creates `clothes` rows), confirms pickup (→ `picked_up`); later starts (→ `out_for_delivery`) and completes (→ `delivered`) the delivery leg.
 
-**Owner:** sees every ticket across every store, each with its full timeline and bag/garment contents, read-only; can create/edit stores and rider/store accounts; basic counts (tickets today, per store, by status) as a starting point for analytics.
+**Owner:** sees every ticket across every store, each with its full timeline, bag/garment contents, and ₹ order value, read-only; creates employee accounts (rider/store/owner, one role each, via an in-app form) rather than editing a database directly; sees cross-store revenue and average rider/service ratings, plus per-customer spend stats alongside the user list; basic counts (tickets today, per store, by status) as a starting point for analytics.
 
 ## 🏗️ 6. Build phases
 

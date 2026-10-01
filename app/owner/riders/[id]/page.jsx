@@ -29,6 +29,8 @@ export default function OwnerRiderDetailPage({ params }) {
   );
   const activeCount = tickets.filter((t) => t.assignedRiderId === rider.id && RIDER_ACTIVE_STATUSES.includes(t.status)).length;
   const deliveredCount = tickets.filter((t) => t.assignedRiderId === rider.id && t.status === 'delivered').length;
+  const ratedTickets = tickets.filter((t) => t.assignedRiderId === rider.id && t.riderRating != null);
+  const avgRating = ratedTickets.length ? ratedTickets.reduce((s, t) => s + t.riderRating, 0) / ratedTickets.length : 0;
 
   return (
     <>
@@ -55,6 +57,10 @@ export default function OwnerRiderDetailPage({ params }) {
         <div className="stat-tile">
           <strong>{deliveredCount}</strong>
           <span>Delivered</span>
+        </div>
+        <div className="stat-tile">
+          <strong>{ratedTickets.length ? `${avgRating.toFixed(1)} ★` : '—'}</strong>
+          <span>Avg rating</span>
         </div>
       </div>
 

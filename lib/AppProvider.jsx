@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import USERS from '@/data/users.json';
 import STORES from '@/data/stores.json';
 import SERVICES from '@/data/services.json';
 
@@ -26,6 +25,7 @@ export function AppProvider({ children }) {
   const [bags, setBags] = useState([]);
   const [clothes, setClothes] = useState([]);
   const [addresses, setAddresses] = useState([]);
+  const [users, setUsers] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const currentUserIdRef = useRef(null);
@@ -37,6 +37,7 @@ export function AppProvider({ children }) {
     setBags(data.bags || []);
     setClothes(data.clothes || []);
     setAddresses(data.addresses || []);
+    setUsers(data.users || []);
   }, []);
 
   const fetchState = useCallback(async () => {
@@ -79,21 +80,21 @@ export function AppProvider({ children }) {
     window.sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ currentUserId }));
   }, [currentUserId, isHydrated]);
 
-  const currentUser = useMemo(() => USERS.find((u) => u.id === currentUserId) || null, [currentUserId]);
+  const currentUser = useMemo(() => users.find((u) => u.id === currentUserId) || null, [currentUserId, users]);
 
   const login = useCallback((email, password) => {
-    const match = USERS.find(
+    const match = users.find(
       (u) => u.email.toLowerCase() === String(email).toLowerCase() && u.password === password
     );
     if (match) setCurrentUserId(match.id);
     return match || null;
-  }, []);
+  }, [users]);
 
   const loginAsRole = useCallback((role) => {
-    const match = USERS.find((u) => u.role === role);
+    const match = users.find((u) => u.role === role);
     if (match) setCurrentUserId(match.id);
     return match || null;
-  }, []);
+  }, [users]);
 
   const logout = useCallback(() => setCurrentUserId(null), []);
 
@@ -141,6 +142,17 @@ export function AppProvider({ children }) {
     return data.address;
   }, [applyState]);
 
+  const addEmployee = useCallback(async ({ name, email, password, role, storeId }) => {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password, role, storeId }),
+    });
+    const data = await res.json();
+    applyState(data);
+    return data.user;
+  }, [applyState]);
+
   const cancelTicket = useCallback((ticketId) => callAction(ticketId, 'cancelTicket'), [callAction]);
   const assignStoreToTicket = useCallback((ticketId, storeId) => callAction(ticketId, 'assignStoreToTicket', { storeId }), [callAction]);
   const assignRiderForPickup = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForPickup', { riderId }), [callAction]);
@@ -155,6 +167,10 @@ export function AppProvider({ children }) {
   const assignRiderForDelivery = useCallback((ticketId, riderId) => callAction(ticketId, 'assignRiderForDelivery', { riderId }), [callAction]);
   const startDelivery = useCallback((ticketId) => callAction(ticketId, 'startDelivery'), [callAction]);
   const markDelivered = useCallback((ticketId) => callAction(ticketId, 'markDelivered'), [callAction]);
+  const rateTicket = useCallback(
+    (ticketId, riderRating, serviceRating) => callAction(ticketId, 'rateTicket', { riderRating, serviceRating }),
+    [callAction]
+  );
 
   // ---- Shared lookups ----
 
@@ -163,7 +179,7 @@ export function AppProvider({ children }) {
 
   const value = {
     isHydrated,
-    users: USERS,
+    users,
     stores: STORES,
     services: SERVICES,
     tickets,
@@ -178,6 +194,7 @@ export function AppProvider({ children }) {
     resetDemoData,
     bookPickup,
     addAddress,
+    addEmployee,
     cancelTicket,
     assignStoreToTicket,
     assignRiderForPickup,
@@ -192,6 +209,7 @@ export function AppProvider({ children }) {
     assignRiderForDelivery,
     startDelivery,
     markDelivered,
+    rateTicket,
     getBagForTicket,
     getClothesForTicket,
   };

@@ -1,21 +1,26 @@
 'use client';
 
 import { useApp } from '@/lib/AppProvider';
-import { STATUS_LABELS, STATUS_ORDER } from '@/lib/constants';
+import { STATUS_LABELS, STATUS_ORDER, calcOrderValue } from '@/lib/constants';
 
 const PROCESSING_STATUSES = ['arrived_at_store', 'washing', 'ironing', 'packed'];
 
 export default function OwnerOverviewPage() {
-  const { tickets, stores, users, today } = useApp();
+  const { tickets, stores, users, clothes, today } = useApp();
 
   const todayCount = tickets.filter((t) => t.pickupDate === today).length;
   const activeCount = tickets.filter((t) => !['delivered', 'cancelled'].includes(t.status)).length;
-  const deliveredCount = tickets.filter((t) => t.status === 'delivered').length;
+  const deliveredTickets = tickets.filter((t) => t.status === 'delivered');
+  const deliveredCount = deliveredTickets.length;
   const cancelledCount = tickets.filter((t) => t.status === 'cancelled').length;
   const unclaimedCount = tickets.filter((t) => !t.storeId && t.status !== 'cancelled').length;
   const awaitingRiderCount = tickets.filter((t) => t.storeId && t.status === 'pickup_scheduled').length;
   const processingCount = tickets.filter((t) => PROCESSING_STATUSES.includes(t.status)).length;
   const riderCount = users.filter((u) => u.role === 'rider').length;
+  const revenue = deliveredTickets.reduce((sum, t) => sum + calcOrderValue(clothes.filter((c) => c.ticketId === t.id)), 0);
+  const ratedTickets = tickets.filter((t) => t.ratedAt);
+  const avgRiderRating = ratedTickets.length ? ratedTickets.reduce((s, t) => s + (t.riderRating || 0), 0) / ratedTickets.length : 0;
+  const avgServiceRating = ratedTickets.length ? ratedTickets.reduce((s, t) => s + (t.serviceRating || 0), 0) / ratedTickets.length : 0;
 
   const byStatus = [...STATUS_ORDER, 'cancelled'].map((s) => ({
     status: s,
@@ -67,6 +72,18 @@ export default function OwnerOverviewPage() {
         <div className="stat-tile">
           <strong>{riderCount}</strong>
           <span>Riders</span>
+        </div>
+        <div className="stat-tile">
+          <strong>₹{revenue}</strong>
+          <span>Revenue</span>
+        </div>
+        <div className="stat-tile">
+          <strong>{ratedTickets.length ? `${avgRiderRating.toFixed(1)} ★` : '—'}</strong>
+          <span>Avg rider rating</span>
+        </div>
+        <div className="stat-tile">
+          <strong>{ratedTickets.length ? `${avgServiceRating.toFixed(1)} ★` : '—'}</strong>
+          <span>Avg service rating</span>
         </div>
       </div>
 
