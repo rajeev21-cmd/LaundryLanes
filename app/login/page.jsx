@@ -15,11 +15,20 @@ const DEMO_ROLES = [
 ];
 
 export default function LoginPage() {
-  const { currentUser, isHydrated, login, loginAsRole } = useApp();
+  const { currentUser, isHydrated, login, loginAsRole, claimAccount } = useApp();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  // Set once login() reports a passwordless account (a customer a store
+  // created for a walk-in/phone order — see storeOrderActions.js) —
+  // swaps the form for a one-time "set a password" step instead of
+  // showing a normal (and misleading) "invalid email or password".
+  const [pendingUser, setPendingUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [claiming, setClaiming] = useState(false);
 
   useEffect(() => {
     if (isHydrated && currentUser) {
@@ -34,12 +43,85 @@ export default function LoginPage() {
 
   function handleSubmit(e) {
     e.preventDefault();
-    const user = login(email, password);
-    if (user) {
-      router.push(ROLE_HOME[user.role]);
+    setError('');
+    const result = login(email, password);
+    if (result.status === 'ok') {
+      router.push(ROLE_HOME[result.user.role]);
+    } else if (result.status === 'needs-password') {
+      setPendingUser(result.user);
     } else {
       setError('Invalid email or password. Try one of the demo logins below.');
     }
+  }
+
+  async function handleClaimAccount(e) {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setClaiming(true);
+    const result = await claimAccount(pendingUser.id, newPassword);
+    setClaiming(false);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      router.push(ROLE_HOME[pendingUser.role]);
+    }
+  }
+
+  if (pendingUser) {
+    return (
+      <>
+        <MarketingHeader showNav={false} />
+        <div className="login-page">
+          <div className="login-card">
+            <h1>Welcome, {pendingUser.name.split(' ')[0]} 👋</h1>
+            <p>This is your first time signing in — set a password to continue.</p>
+
+            <form onSubmit={handleClaimAccount}>
+              <div className="form-field">
+                <label htmlFor="new-password">New password</label>
+                <input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="confirm-password">Confirm password</label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+              {error && <div className="form-error">{error}</div>}
+              <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={claiming}>
+                {claiming ? 'Setting password…' : 'Set password & continue'}
+              </button>
+            </form>
+
+            <button
+              type="button"
+              className="btn btn-outline btn-block"
+              style={{ marginTop: 10 }}
+              onClick={() => {
+                setPendingUser(null);
+                setError('');
+              }}
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+        <MarketingFooter />
+      </>
+    );
   }
 
   return (
@@ -79,8 +161,7 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
+                placeholder="•••••••• (leave blank if you've never set one)"
               />
             </div>
             {error && <div className="form-error">{error}</div>}

@@ -8,42 +8,61 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// A walk-in/phone order is for right now, not a future scheduled pickup —
+// there's no slot picker in this form (see the page component below), so
+// pick whichever slot bucket the current time actually falls into instead
+// of defaulting to a fixed one regardless of when the order was created.
+function currentSlotKey() {
+  const hour = new Date().getHours();
+  const keys = Object.keys(SLOT_LABELS);
+  const match = keys.find((key) => {
+    const [start, end] = key.split('-').map(Number);
+    return hour >= start && hour < end;
+  });
+  if (match) return match;
+  return hour < 8 ? keys[0] : keys[keys.length - 1];
+}
+
 export default function StoreCreateOrderPage() {
   const { services, users, currentUser, createStoreOrder } = useApp();
   const customers = users.filter((u) => u.role === 'customer');
 
-  const [customerMode, setCustomerMode] = useState(customers.length ? 'existing' : 'new');
+  const [customerMode, setCustomerMode] = useState('existing');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
 
   const [serviceId, setServiceId] = useState(services[0].id);
   const [line1, setLine1] = useState('');
   const [landmark, setLandmark] = useState('');
   const [city, setCity] = useState('Bengaluru');
   const [pincode, setPincode] = useState('');
-  const [pickupDate, setPickupDate] = useState(todayStr());
-  const [slot, setSlot] = useState(Object.keys(SLOT_LABELS)[0]);
   const [notes, setNotes] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [createdTicket, setCreatedTicket] = useState(null);
 
+  const selectedCustomer = customers.find((c) => c.id === customerId);
+  const searchTerm = customerSearch.trim().toLowerCase();
+  const matchingCustomers = searchTerm
+    ? customers.filter((c) => (c.phone || '').toLowerCase().includes(searchTerm) || (c.email || '').toLowerCase().includes(searchTerm))
+    : [];
+
   const canSubmit =
     line1.trim() &&
     pincode.trim() &&
-    (customerMode === 'existing' ? !!customerId : newName.trim() && newEmail.trim() && newPassword.trim());
+    (customerMode === 'existing' ? !!customerId : newName.trim() && newEmail.trim());
 
   function resetForNextOrder() {
     setCreatedTicket(null);
     setCustomerId('');
+    setCustomerSearch('');
     setNewName('');
     setNewPhone('');
     setNewEmail('');
-    setNewPassword('');
     setLine1('');
     setLandmark('');
     setPincode('');
@@ -59,12 +78,12 @@ export default function StoreCreateOrderPage() {
     const result = await createStoreOrder({
       storeId: currentUser.storeId,
       customerId: customerMode === 'existing' ? customerId : undefined,
-      newCustomer: customerMode === 'new' ? { name: newName, phone: newPhone, email: newEmail, password: newPassword } : undefined,
+      newCustomer: customerMode === 'new' ? { name: newName, phone: newPhone, email: newEmail } : undefined,
       serviceId,
       pickupAddress,
       pincode: pincode.trim(),
-      pickupDate,
-      slot,
+      pickupDate: todayStr(),
+      slot: currentSlotKey(),
       notes,
     });
     setSubmitting(false);
@@ -115,16 +134,51 @@ export default function StoreCreateOrderPage() {
             </div>
 
             {customerMode === 'existing' ? (
-              <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
-                <option value="" disabled>
-                  Choose a customer…
-                </option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.phone || c.email})
-                  </option>
-                ))}
-              </select>
+              selectedCustomer ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="ticket-card-tag">
+                    👤 {selectedCustomer.name} — {selectedCustomer.phone || selectedCustomer.email}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => {
+                      setCustomerId('');
+                      setCustomerSearch('');
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Search by phone number or email"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                  />
+                  {searchTerm &&
+                    (matchingCustomers.length ? (
+                      <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0 }}>
+                        {matchingCustomers.map((c) => (
+                          <li key={c.id} style={{ marginBottom: 6 }}>
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-block"
+                              style={{ textAlign: 'left' }}
+                              onClick={() => setCustomerId(c.id)}
+                            >
+                              👤 {c.name} — {c.phone || c.email}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="form-hint">No customer found — switch to &quot;New customer&quot; to add them.</p>
+                    ))}
+                </>
+              )
             ) : (
               <div className="card-section" style={{ boxShadow: 'none', border: '1px solid rgba(11,37,69,0.12)' }}>
                 <div className="form-field">
@@ -135,14 +189,10 @@ export default function StoreCreateOrderPage() {
                   <label htmlFor="new-phone">Phone (optional)</label>
                   <input id="new-phone" type="text" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
                 </div>
-                <div className="form-field">
+                <div className="form-field" style={{ marginBottom: 0 }}>
                   <label htmlFor="new-email">Email</label>
                   <input id="new-email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
-                </div>
-                <div className="form-field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="new-password">Password</label>
-                  <input id="new-password" type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-                  <p className="form-hint">So they can log in later and track this order — plaintext demo auth, same as every other account here.</p>
+                  <p className="form-hint">No password needed now — they'll set one the first time they log in.</p>
                 </div>
               </div>
             )}
@@ -184,20 +234,6 @@ export default function StoreCreateOrderPage() {
             />
           </div>
 
-          <div className="form-field">
-            <label htmlFor="date">Pickup date</label>
-            <input id="date" type="date" min={todayStr()} value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} required />
-          </div>
-          <div className="form-field">
-            <label htmlFor="slot">Time slot</label>
-            <select id="slot" value={slot} onChange={(e) => setSlot(e.target.value)}>
-              {Object.entries(SLOT_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
           <div className="form-field">
             <label htmlFor="notes">Notes (optional)</label>
             <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Gate code, special instructions, etc." />

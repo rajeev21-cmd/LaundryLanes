@@ -84,12 +84,18 @@ export function AppProvider({ children }) {
 
   const currentUser = useMemo(() => users.find((u) => u.id === currentUserId) || null, [currentUserId, users]);
 
+  // Returns a status instead of just the user — a customer created by a
+  // store (walk-in/phone order, see storeOrderActions.js) has no password
+  // yet, which isn't the same thing as "wrong password" and needs its own
+  // UI path (app/login/page.jsx prompts them to set one instead of
+  // showing "invalid email or password").
   const login = useCallback((email, password) => {
-    const match = users.find(
-      (u) => u.email.toLowerCase() === String(email).toLowerCase() && u.password === password
-    );
-    if (match) setCurrentUserId(match.id);
-    return match || null;
+    const match = users.find((u) => u.email.toLowerCase() === String(email).toLowerCase());
+    if (!match) return { status: 'not-found' };
+    if (!match.password) return { status: 'needs-password', user: match };
+    if (match.password !== password) return { status: 'wrong-password' };
+    setCurrentUserId(match.id);
+    return { status: 'ok', user: match };
   }, [users]);
 
   const loginAsRole = useCallback((role) => {
@@ -190,6 +196,24 @@ export function AppProvider({ children }) {
     return data;
   }, [applyState]);
 
+  // Sets a first-time password for a passwordless account (see login()
+  // above) and logs them straight in — sets currentUserId directly rather
+  // than calling login() again, which would risk reading a stale `users`
+  // closure from before this same update lands.
+  const claimAccount = useCallback(async (userId, password) => {
+    const res = await fetch(`/api/users/${userId}/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+    if (!data.error) {
+      applyState(data);
+      setCurrentUserId(userId);
+    }
+    return data;
+  }, [applyState]);
+
   const generateBags = useCallback(async (count) => {
     const res = await fetch('/api/bags', {
       method: 'POST',
@@ -273,6 +297,7 @@ export function AppProvider({ children }) {
     addEmployee,
     updateEmployee,
     deleteEmployee,
+    claimAccount,
     generateBags,
     assignBagToStore,
     generateClothTags,

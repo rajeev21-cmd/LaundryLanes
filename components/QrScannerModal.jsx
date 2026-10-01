@@ -40,6 +40,27 @@ export default function QrScannerModal({ open, onClose, onScan }) {
     }
 
     async function start() {
+      // getUserMedia only works in a "secure context" — HTTPS, or
+      // http://localhost specifically — on every modern mobile browser
+      // (Chrome on Android, Safari on iOS alike). Opening this app via a
+      // LAN IP (e.g. http://192.168.1.5:3000, how a phone reaches a dev
+      // server on another machine) is plain HTTP on a non-localhost host,
+      // so the API is simply unavailable there — not a bug to fix in this
+      // component, and no permission prompt will ever appear. Check this
+      // first so the message says so plainly instead of looking like a
+      // generic permission denial.
+      if (typeof window !== 'undefined' && !window.isSecureContext) {
+        if (!cancelled) {
+          setError(
+            "Camera needs HTTPS — this page is loaded over plain HTTP (e.g. a LAN IP), which browsers always block camera access on. Type the id instead, or open this app's HTTPS URL."
+          );
+        }
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        if (!cancelled) setError('This browser has no camera API available — type the id instead.');
+        return;
+      }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         if (cancelled) {
@@ -52,8 +73,15 @@ export default function QrScannerModal({ open, onClose, onScan }) {
           await videoRef.current.play();
         }
         tick();
-      } catch {
-        if (!cancelled) setError('Camera access denied or unavailable — type the id instead.');
+      } catch (err) {
+        if (cancelled) return;
+        if (err?.name === 'NotAllowedError') {
+          setError('Camera permission was denied — allow camera access for this site in your browser settings, or type the id instead.');
+        } else if (err?.name === 'NotFoundError') {
+          setError('No camera found on this device — type the id instead.');
+        } else {
+          setError('Camera access denied or unavailable — type the id instead.');
+        }
       }
     }
 
